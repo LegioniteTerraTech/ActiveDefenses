@@ -1,0 +1,9 @@
+﻿{
+  "Id": "legionite.activedefenses",
+  "DisplayName": "Active Defenses",
+  "Author": "Legionite",
+  "Version": "0.1.0",
+  "Enable": true,
+  "AssemblyName": "ActiveDefenses.dll",
+  "EntryMethod": "ActiveDefenses.KickStart.Main"
+}
