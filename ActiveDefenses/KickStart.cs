@@ -1,5 +1,5 @@
 ﻿using System;
-using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
 using HarmonyLib;
 using UnityEngine;
@@ -16,6 +16,12 @@ namespace ActiveDefenses
     public class KickStart
     {
         internal const string ModName = "ActiveDefenses";
+        internal static bool IsUnstable = false;
+        public static void CheckIfUnstable()
+        {
+            IsUnstable = SKU.DisplayVersion.TakeWhile(x => x == '.').Count() > 2;
+            Debug.Log("TACtical_AI: Is this in the Unstable? - " + IsUnstable);
+        }
 
         internal static bool isNuterraSteamPresent = false;
         internal static bool isRandAdditionsPresent = false;
@@ -164,10 +170,9 @@ namespace ActiveDefenses
             }
             else
             {
-                DebugActDef.Assert(true, "-----------------------------\nRandomAdditions IS NOT INSTALLED!!!\n-----------------------------");
+                DebugActDef.Log("-----------------------------\nRandomAdditions IS NOT INSTALLED!!!\n-----------------------------");
                 return;
             }
-            Harmony harmonyInstance = new Harmony("legionite.activedefenses");
             try
             {
                 harmonyInstance.PatchAll(Assembly.GetExecutingAssembly());
@@ -210,13 +215,13 @@ namespace ActiveDefenses
         {
             if (name == "RandomAdditions")
             {
-                foreach (var assembly in System.AppDomain.CurrentDomain.GetAssemblies())
+                try
                 {
-                    if (assembly.FullName.StartsWith(name))
-                    {
-                        if (assembly.GetType("KickStart") != null)
-                            return true;
-                    }
+                    bool _ = RandomAdditions.KickStart.InterceptedExplode;
+                    return true;
+                }
+                catch
+                { 
                 }
             }
             else
@@ -233,34 +238,4 @@ namespace ActiveDefenses
         }
     }
 
-    public class KickStartOptions
-    {
-        internal static ModConfig config;
-
-        // NativeOptions Parameters
-        public static OptionToggle unused;
-        public static OptionRange unused2;
-
-        private static bool launched = false;
-
-        public static void TryInitOptionAndConfig()
-        {
-            if (launched)
-                return;
-            launched = true;
-            //Initiate the madness
-            try
-            {
-                ModConfig thisModConfig = new ModConfig();
-                thisModConfig.BindConfig<KickStart>(null, "DebugPopups");
-                NativeOptionsMod.onOptionsSaved.AddListener(() => { config.WriteConfigJsonFile(); });
-            }
-            catch (Exception e)
-            {
-                DebugActDef.Log("ActiveDefenses: Error on Option & Config setup");
-                DebugActDef.Log(e);
-            }
-
-        }
-    }
 }

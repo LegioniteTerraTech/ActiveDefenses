@@ -176,41 +176,46 @@ namespace ActiveDefenses
             int count = Projectiles.Count;
             for (int step = 0; step < count;)
             {
-                KeyValuePair<Projectile, CubeBranch> proj = Projectiles.ElementAt(step);
+                try
+                {
+                    KeyValuePair<Projectile, CubeBranch> proj = Projectiles.ElementAt(step);
 
-                if (!(bool)proj.Key?.rbody)
-                {
-                    if (proj.Value.Remove(proj.Key))
-                        CubeBranches.Remove(proj.Value);
-                    //Debug.Log("ActiveDefenses: UpdatePos - ID: " + proj.Key.ShortlivedUID + " ProjectileRemoveReason: Null PairEntry/Rbody");
-                    Projectiles.RemoveAt(step);
-                    count--;
-                    continue;
-                }
-                else if (!(bool)proj.Key?.Shooter)
-                {
-                    if (proj.Value.Remove(proj.Key))
-                        CubeBranches.Remove(proj.Value);
-                    //Debug.Log("ActiveDefenses: UpdatePos - ID: " + proj.Key.ShortlivedUID + " ProjectileRemoveReason: Null Shooter");
-                    Projectiles.RemoveAt(step);
-                    count--;
-                    continue;
-                }
-                else
-                {
-                    if (!CubeBranches.ElementAt(step).UpdateCubeBranch(proj.Key, out CubeBranch newCB))
+                    if (!(bool)proj.Key?.rbody)
                     {
-                        CubeBranches.RemoveAt(step);
-                        count--;
-                    }
-                    if (newCB != null)
-                    {
-                        //Debug.Log("ActiveDefenses: UpdateCubeBranch - Migrated Projectile ID: " + proj.Key.ShortlivedUID + ".");
+                        if (proj.Value.Remove(proj.Key))
+                            CubeBranches.Remove(proj.Value);
+                        //Debug.Log("ActiveDefenses: UpdatePos - ID: " + proj.Key.ShortlivedUID + " ProjectileRemoveReason: Null PairEntry/Rbody");
                         Projectiles.RemoveAt(step);
-                        Projectiles.Insert(step, new KeyValuePair<Projectile, CubeBranch>(proj.Key, newCB));
+                        count--;
+                        continue;
                     }
+                    else if (!(bool)proj.Key?.Shooter)
+                    {
+                        if (proj.Value.Remove(proj.Key))
+                            CubeBranches.Remove(proj.Value);
+                        //Debug.Log("ActiveDefenses: UpdatePos - ID: " + proj.Key.ShortlivedUID + " ProjectileRemoveReason: Null Shooter");
+                        Projectiles.RemoveAt(step);
+                        count--;
+                        continue;
+                    }
+                    else
+                    {
+                        if (!CubeBranches.ElementAt(step).UpdateCubeBranch(proj.Key, out CubeBranch newCB))
+                        {
+                            CubeBranches.RemoveAt(step);
+                            count--;
+                        }
+                        if (newCB != null)
+                        {
+                            //Debug.Log("ActiveDefenses: UpdateCubeBranch - Migrated Projectile ID: " + proj.Key.ShortlivedUID + ".");
+                            Projectiles.RemoveAt(step);
+                            Projectiles.Insert(step, new KeyValuePair<Projectile, CubeBranch>(proj.Key, newCB));
+                        }
+                    }
+                    step++;
                 }
-                step++;
+                catch
+                { }
             }
             updatedThisFrame = true;
         }

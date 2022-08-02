@@ -227,7 +227,7 @@
     <PostBuildEvent>del *.pdb
 @setlocal enableextensions enabledelayedexpansion
 
-set modpath="C:\Program Files (x86)\Steam\steamapps\common\TerraTech\QMods\Active Defenses"
+set modpath="C:\Program Files (x86)\Steam\steamapps\common\TerraTech\QMods\ActiveDefenses"
 
 if exist !modpath! (
 if $(ConfigurationName) == Release (
