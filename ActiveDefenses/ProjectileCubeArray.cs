@@ -77,13 +77,14 @@ namespace ActiveDefenses
             }
             KeyValuePair<Projectile, CubeBranch> pair = Projectiles[index];
             Projectiles.RemoveAt(index);
+            /*
             if (!CubeBranches.Remove(pair.Value))
                 DebugActDef.Log("ActiveDefenses: ProjectileCubetree(Remove) - Projectile was removed from list but not from cube branches " + StackTraceUtility.ExtractStackTrace());
             else
             {
                 //Debug.Log("ActiveDefenses: ProjectileCubetree(Remove) - Projectile was removed successfully ID: " + proj.ShortlivedUID + ", " + StackTraceUtility.ExtractStackTrace());
                 return true;
-            }
+            }*/
             return false;
         }
         private bool Remove(KeyValuePair<Projectile, CubeBranch> proj)
@@ -174,9 +175,9 @@ namespace ActiveDefenses
             if (updatedThisFrame)
                 return;
             int count = Projectiles.Count;
-            for (int step = 0; step < count;)
+            try
             {
-                try
+                for (int step = 0; step < count;)
                 {
                     KeyValuePair<Projectile, CubeBranch> proj = Projectiles.ElementAt(step);
 
@@ -214,9 +215,8 @@ namespace ActiveDefenses
                     }
                     step++;
                 }
-                catch
-                { }
             }
+            catch { }
             updatedThisFrame = true;
         }
         public void UpdateWorldPos(IntVector3 move)
