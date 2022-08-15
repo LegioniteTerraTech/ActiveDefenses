@@ -240,6 +240,27 @@ echo Copying to game
 set e=$(TargetDir)&gt;nul
 xcopy /S /Y /R "!e:~0,-1!" !modpath!
 )
-)</PostBuildEvent>
+)
+
+set modpath2="C:\Users\Legionite\Desktop\Advanced AI\Assets\Mods\Active Defenses"
+
+if exist !modpath2! (
+if $(ConfigurationName) == Steam (
+echo Copying to SteamMod
+set e=$(TargetDir)&gt;nul
+xcopy /S /Y /R "!e:~0,-1!" !modpath2!
+)
+)
+
+set modpath3="C:\Program Files (x86)\Steam\steamapps\workshop\content\285920\2848336133"
+
+if exist !modpath3! (
+if $(ConfigurationName) == Steam (
+echo Copying to SteamWorkshopDirect
+set e=$(TargetDir)&gt;nul
+xcopy /S /Y /R "!e:~0,-1!" !modpath3!
+)
+)
+</PostBuildEvent>
   </PropertyGroup>
 </Project>

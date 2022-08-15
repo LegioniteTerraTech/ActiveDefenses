@@ -47,13 +47,22 @@ namespace ActiveDefenses
         private static bool patched = false;
         static Harmony harmonyInstance = new Harmony("legionite.activedefenses");
         //private static bool patched = false;
-#if STEAM
-        private static bool OfficialEarlyInited = false;
-        public static void OfficialEarlyInit()
-        {
-            //Where the fun begins
 
-            //Initiate the madness
+        public static bool VALIDATE_MODS()
+        {
+#if STEAM
+            if (!LookForMod("0ModManager"))
+            {
+                DebugActDef.FatalError("This mod NEEDS 0ModManager to function!  Please subscribe to it on the Steam Workshop and follow the instructions carefully.");
+                return false;
+            }
+#endif
+            if (!LookForMod("0Harmony"))
+            {
+                DebugActDef.FatalError("This mod NEEDS Harmony to function!  Please subscribe to it on the Steam Workshop.");
+                return false;
+            }
+
             if (LookForMod("RandomAdditions"))
             {
                 Debug.Log("ActiveDefenses: Found RandomAdditions!  Hooking up!");
@@ -62,9 +71,28 @@ namespace ActiveDefenses
             else
             {
                 DebugActDef.Assert(true, "-----------------------------\nRandomAdditions IS NOT INSTALLED!!!\n-----------------------------");
+                DebugActDef.FatalError("This mod NEEDS Random Additions to function!  Please subscribe to it on the Steam Workshop.");
+                return false;
+            }
+            if (LookForMod("NuterraSteam"))
+            {
+                DebugActDef.Log("ActiveDefenses: Found NuterraSteam!  Making sure blocks work!");
+                isNuterraSteamPresent = true;
+            }
+            return true;
+        }
+#if STEAM
+        private static bool OfficialEarlyInited = false;
+        public static void OfficialEarlyInit()
+        {
+            //Where the fun begins
+            DebugActDef.Log("ActiveDefenses: MAIN (Steam Workshop Version) startup");
+            if (!VALIDATE_MODS())
+            {
                 return;
             }
-            DebugActDef.Log("ActiveDefenses: OfficialEarlyInit");
+
+            //Initiate the madness
             try
             { // init changes
                 harmonyInstance.PatchAll(Assembly.GetExecutingAssembly());
@@ -80,11 +108,6 @@ namespace ActiveDefenses
             ProjectileManager.Initiate();
 
 
-            if (LookForMod("NuterraSteam"))
-            {
-                DebugActDef.Log("ActiveDefenses: Found NuterraSteam!  Making sure blocks work!");
-                isNuterraSteamPresent = true;
-            }
             try
             {
                 KickStartOptions.TryInitOptionAndConfig();
@@ -110,6 +133,7 @@ namespace ActiveDefenses
         public static void MainOfficialInit()
         {
             //Where the fun begins
+            DebugActDef.Log("ActiveDefenses: MAIN (Steam Workshop Version) startup");
             if (!OfficialEarlyInited)
             {
                 DebugActDef.Log("ActiveDefenses: MainOfficialInit was called before OfficialEarlyInit was finished?! Trying OfficialEarlyInit AGAIN");
@@ -161,18 +185,13 @@ namespace ActiveDefenses
         public static void Main()
         {
             //Where the fun begins
-
-            //Initiate the madness
-            if (LookForMod("RandomAdditions"))
+            DebugActDef.Log("ActiveDefenses: MAIN (TTMM Version) startup");
+            if (!VALIDATE_MODS())
             {
-                Debug.Log("ActiveDefenses: Found RandomAdditions!  Hooking up!");
-                isRandAdditionsPresent = true;
-            }
-            else
-            {
-                DebugActDef.Log("-----------------------------\nRandomAdditions IS NOT INSTALLED!!!\n-----------------------------");
                 return;
             }
+
+            //Initiate the madness
             try
             {
                 harmonyInstance.PatchAll(Assembly.GetExecutingAssembly());
@@ -192,13 +211,6 @@ namespace ActiveDefenses
                 Debug.Log(e);
             }
             ProjectileManager.Initiate();
-
-            if (LookForMod("NuterraSteam"))
-            {
-                Debug.Log("ActiveDefenses: Found NuterraSteam!  Making sure blocks work!");
-                isNuterraSteamPresent = true;
-            }
-
 
             try
             {
