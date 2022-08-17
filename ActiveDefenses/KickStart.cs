@@ -48,15 +48,20 @@ namespace ActiveDefenses
         static Harmony harmonyInstance = new Harmony("legionite.activedefenses");
         //private static bool patched = false;
 
+        internal static bool isSteamManaged = false;
         public static bool VALIDATE_MODS()
         {
-#if STEAM
-            if (!LookForMod("0ModManager"))
+            if (!LookForMod("NLogManager"))
             {
+                isSteamManaged = false;
+#if STEAM
                 DebugActDef.FatalError("This mod NEEDS 0ModManager to function!  Please subscribe to it on the Steam Workshop and follow the instructions carefully.");
                 return false;
-            }
 #endif
+            }
+            else
+                isSteamManaged = true;
+
             if (!LookForMod("0Harmony"))
             {
                 DebugActDef.FatalError("This mod NEEDS Harmony to function!  Please subscribe to it on the Steam Workshop.");
@@ -81,7 +86,7 @@ namespace ActiveDefenses
             }
             return true;
         }
-#if STEAM
+
         private static bool OfficialEarlyInited = false;
         public static void OfficialEarlyInit()
         {
@@ -133,13 +138,22 @@ namespace ActiveDefenses
         public static void MainOfficialInit()
         {
             //Where the fun begins
+#if STEAM
             DebugActDef.Log("ActiveDefenses: MAIN (Steam Workshop Version) startup");
+            if (!VALIDATE_MODS())
+            {
+                return;
+            }
             if (!OfficialEarlyInited)
             {
                 DebugActDef.Log("ActiveDefenses: MainOfficialInit was called before OfficialEarlyInit was finished?! Trying OfficialEarlyInit AGAIN");
                 OfficialEarlyInit();
             }
             DebugActDef.Log("ActiveDefenses: MainOfficialInit");
+#else
+            DebugActDef.Log("ActiveDefenses: Startup was invoked by TTSMM!  Set-up to handle LATE initialization.");
+            OfficialEarlyInit();
+#endif
 
             //Initiate the madness
             if (!patched)
@@ -161,6 +175,7 @@ namespace ActiveDefenses
             }
 
         }
+#if STEAM
         public static void DeInitALL()
         {
             if (patched)
@@ -189,6 +204,10 @@ namespace ActiveDefenses
             if (!VALIDATE_MODS())
             {
                 return;
+            }
+            if (isSteamManaged)
+            {
+                MainOfficialInit();
             }
 
             //Initiate the madness

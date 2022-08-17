@@ -11,6 +11,49 @@ namespace ActiveDefenses
     class PatchBatch
     {
     }
+#if STEAM
+    public class KickStartActiveDefenses : ModBase
+    {
+        internal static KickStartActiveDefenses oInst = null;
+
+        bool isInit = false;
+        bool firstInit = false;
+        public override bool HasEarlyInit()
+        {
+            DebugActDef.Log("ActiveDefenses: CALLED");
+            return true;
+        }
+
+        // IDK what I should init here...
+        public override void EarlyInit()
+        {
+            DebugActDef.Log("ActiveDefenses: CALLED EARLYINIT");
+            if (oInst == null)
+            {
+                KickStart.OfficialEarlyInit();
+                oInst = this;
+            }
+        }
+        public override void Init()
+        {
+            DebugActDef.Log("ActiveDefenses: CALLED INIT");
+            if (isInit)
+                return;
+            if (oInst == null)
+                oInst = this;
+
+            KickStart.MainOfficialInit();
+            isInit = true;
+        }
+        public override void DeInit()
+        {
+            if (!isInit)
+                return;
+            KickStart.DeInitALL();
+            isInit = false;
+        }
+    }
+#endif
 
     internal static class Patches
     {
