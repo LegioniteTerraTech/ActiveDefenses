@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using UnityEngine;
+using TerraTechETCUtil;
 
 namespace ActiveDefenses
 {
@@ -108,10 +109,10 @@ namespace ActiveDefenses
                     }
                     exploded = true;
                 }
-                var split = GetComponent<SpiltProjectile>();
-                if (split)
+                var split = GetComponent<IExplodeable>();
+                if (split != null)
                 {
-                    split.OnExplosion();
+                    split.Explode();
                 }
 
                 proj.Recycle(worldPosStays: false);

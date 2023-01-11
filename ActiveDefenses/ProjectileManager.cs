@@ -65,18 +65,24 @@ namespace ActiveDefenses
         private void FixedUpdate()
         {
             //Debug.Log("ActiveDefenses:  There are " + cheaters.Count + " - glitchyProj");
-            foreach (var item in cheaters)
+            if (cheaters.Count > 0)
             {
-                if (WarnAllLaserDefenses(item) || !item.gameObject.activeSelf)
-                    cheatersDest.Add(item);
+                List<Projectile> queue = new List<Projectile>(cheaters);
+                foreach (var item in queue)
+                {
+                    try
+                    {
+                        if (WarnAllLaserDefenses(item) || !item.gameObject.activeSelf)
+                            cheaters.Remove(item);
+                    }
+                    catch
+                    {
+                        DebugActDef.Log("(FixedUpdate) Overspeed Projectile with illegal state ignored");
+                        cheaters.Remove(item);
+                    }
+                }
             }
-            foreach (var item in cheatersDest)
-            {
-                cheaters.Remove(item);
-            }
-            cheatersDest.Clear();
         }
-        internal static List<Projectile> cheatersDest = new List<Projectile>();
 
         public static void OnWorldMovePost(IntVector3 moved)
         {
@@ -92,9 +98,16 @@ namespace ActiveDefenses
             {
                 if (TankPointDefense.HasPointDefenseActive)
                 {
-                    if (!WarnAllLaserDefenses(rbody))
+                    try
                     {
-                        cheaters.Add(rbody);
+                        if (!WarnAllLaserDefenses(rbody))
+                        {
+                            cheaters.Add(rbody);
+                        }
+                    }
+                    catch
+                    {
+                        DebugActDef.Log("Overspeed Projectile with illegal state ignored");
                     }
                 }
             }

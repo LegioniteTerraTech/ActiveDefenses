@@ -18,6 +18,35 @@ namespace ActiveDefenses
 
         bool isInit = false;
         bool firstInit = false;
+
+        /*
+        public static Type[] EarlyLoadAfter()
+        {
+            try
+            {
+                return new Type[] { typeof(RandomAdditions.KickStartRandomAdditions) };
+            }
+            catch
+            {
+                DebugActDef.FatalError("This mod NEEDS Random Additions to function!  Please subscribe to it on the Steam Workshop.");
+                return new Type[] { };
+            }
+        }
+
+        public static Type[] LoadAfter()
+        {
+            try
+            {
+                return new Type[] { typeof(RandomAdditions.KickStartRandomAdditions) };
+            }
+            catch
+            {
+                DebugActDef.FatalError("This mod NEEDS Random Additions to function!  Please subscribe to it on the Steam Workshop.");
+                return new Type[] { };
+            }
+        }*/
+
+
         public override bool HasEarlyInit()
         {
             DebugActDef.Log("ActiveDefenses: CALLED");

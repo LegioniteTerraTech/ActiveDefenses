@@ -3,7 +3,7 @@ using System.Linq;
 using System.Reflection;
 using HarmonyLib;
 using UnityEngine;
-using RandomAdditions;
+using TerraTechETCUtil;
 #if !STEAM
 using ModHelper.Config;
 #else
@@ -54,10 +54,6 @@ namespace ActiveDefenses
             if (!LookForMod("NLogManager"))
             {
                 isSteamManaged = false;
-#if STEAM
-                DebugActDef.FatalError("This mod NEEDS 0ModManager to function!  Please subscribe to it on the Steam Workshop and follow the instructions carefully.");
-                return false;
-#endif
             }
             else
                 isSteamManaged = true;
@@ -65,18 +61,6 @@ namespace ActiveDefenses
             if (!LookForMod("0Harmony"))
             {
                 DebugActDef.FatalError("This mod NEEDS Harmony to function!  Please subscribe to it on the Steam Workshop.");
-                return false;
-            }
-
-            if (LookForMod("RandomAdditions"))
-            {
-                Debug.Log("ActiveDefenses: Found RandomAdditions!  Hooking up!");
-                isRandAdditionsPresent = true;
-            }
-            else
-            {
-                DebugActDef.Assert(true, "-----------------------------\nRandomAdditions IS NOT INSTALLED!!!\n-----------------------------");
-                DebugActDef.FatalError("This mod NEEDS Random Additions to function!  Please subscribe to it on the Steam Workshop.");
                 return false;
             }
             if (LookForMod("NuterraSteam"))
@@ -100,6 +84,7 @@ namespace ActiveDefenses
             //Initiate the madness
             try
             { // init changes
+                LegModExt.InsurePatches();
                 harmonyInstance.PatchAll(Assembly.GetExecutingAssembly());
                 //EdgePatcher(true);
                 DebugActDef.Log("ActiveDefenses: Patched");
@@ -111,26 +96,6 @@ namespace ActiveDefenses
                 DebugActDef.Log(e);
             }
             ProjectileManager.Initiate();
-
-
-            try
-            {
-                KickStartOptions.TryInitOptionAndConfig();
-            }
-            catch (Exception e)
-            {
-                DebugActDef.Log("ActiveDefenses: Error on Option & Config setup");
-                DebugActDef.Log(e);
-            }
-            try
-            {
-                SafeSaves.ManSafeSaves.RegisterSaveSystem(Assembly.GetExecutingAssembly());
-            }
-            catch (Exception e)
-            {
-                DebugActDef.Log("ActiveDefenses: Error on RegisterSaveSystem");
-                DebugActDef.Log(e);
-            }
             OfficialEarlyInited = true;
         }
 
@@ -161,6 +126,7 @@ namespace ActiveDefenses
                 int patchStep = 0;
                 try
                 {
+                    LegModExt.InsurePatches();
                     harmonyInstance.PatchAll(Assembly.GetExecutingAssembly());
                     patchStep++;
                     //EdgePatcher(true);
@@ -183,6 +149,7 @@ namespace ActiveDefenses
                 try
                 {
                     harmonyInstance.UnpatchAll("legionite.activedefenses");
+                    LegModExt.RemovePatches();
                     //EdgePatcher(false);
                     DebugActDef.Log("ActiveDefenses: UnPatched");
                     patched = false;
@@ -213,6 +180,7 @@ namespace ActiveDefenses
             //Initiate the madness
             try
             {
+                LegModExt.InsurePatches();
                 harmonyInstance.PatchAll(Assembly.GetExecutingAssembly());
             }
             catch (Exception e)
@@ -248,7 +216,7 @@ namespace ActiveDefenses
             {
                 try
                 {
-                    bool _ = RandomAdditions.KickStart.InterceptedExplode;
+                    //bool _ = RandomAdditions.KickStart.InterceptedExplode;
                     return true;
                 }
                 catch

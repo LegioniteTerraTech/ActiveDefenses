@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Reflection;
 using UnityEngine;
-using RandomAdditions;
+using TerraTechETCUtil;
 
 public class InterceptProjectile : ActiveDefenses.InterceptProjectile { };
 namespace RandomAdditions
@@ -98,7 +98,7 @@ namespace ActiveDefenses
                 return;
             if (StartDelay > byte.MaxValue || startDelay < 3)
             {
-                RandomAdditions.LogHandler.ThrowWarning("ActiveDefenses: \nInterceptProjectile StartDelay must be within [3 - 255]\nCause of error - Projectile " + gameObject.name);
+                BlockDebug.ThrowWarning("ActiveDefenses: \nInterceptProjectile StartDelay must be within [3 - 255]\nCause of error - Projectile " + gameObject.name);
             }
             else
                 startDelay = (byte)StartDelay;
@@ -165,7 +165,7 @@ namespace ActiveDefenses
                             targ.GetHealth();
                         }
                         targ.TakeDamage(PointDefDamage, InterceptedExplode);
-                        RandomAdditions.ProjBase.ExplodeNoDamage(PB.project); //Blows up THE InterceptProjectile
+                        ProjBase.ExplodeNoDamage(PB.project); //Blows up THE InterceptProjectile
                         Recycle();
                     }
                     catch

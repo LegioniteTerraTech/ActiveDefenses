@@ -351,7 +351,7 @@ namespace ActiveDefenses
         {
             internal IntVector3 CBPosition;
             internal ProjectileCubeArray tree;
-            internal List<Projectile> Projectiles = new List<Projectile>();
+            internal HashSet<Projectile> Projectiles = new HashSet<Projectile>();
 
             public Vector3 GetCBPosition()
             {
@@ -375,14 +375,14 @@ namespace ActiveDefenses
                     if (!(bool)proj?.rbody)
                     {
                         DebugActDef.Log("ActiveDefenses: CubeBranch(GetProjectiles) - error - RBODY is NULL");
-                        Projectiles.RemoveAt(step);
+                        Projectiles.Remove(proj);
                         count--;
                         continue;
                     }
                     if (!(bool)proj.Shooter)
                     {
                         //Debug.Log("ActiveDefenses: CubeBranch(GetProjectiles) - Shooter null");
-                        Projectiles.RemoveAt(step);
+                        Projectiles.Remove(proj);
                         count--;
                         continue;
                     }

@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using UnityEngine;
-using RandomAdditions;
+using TerraTechETCUtil;
 
 [RequireComponent(typeof(ModuleEnergy))]
 public class ModulePointDefense : ActiveDefenses.ModulePointDefense { };
@@ -65,7 +65,7 @@ namespace ActiveDefenses
      */
 
     [RequireComponent(typeof(ModuleEnergy))]
-    public class ModulePointDefense : RandomAdditions.ExtModule, TechAudio.IModuleAudioProvider
+    public class ModulePointDefense : ExtModule, TechAudio.IModuleAudioProvider
     {
         // General parameters
         public bool DefendOnly = false;
@@ -130,7 +130,6 @@ namespace ActiveDefenses
         private ModuleEnergy energy;
         private List<GimbalAimer> aimers;
         private TargetAimer aimerMain;
-        private ExtGimbalAimer aimerChild;
         //private List<CannonBarrel> barrels;
         private Rigidbody LockedTarget;
 
@@ -144,13 +143,13 @@ namespace ActiveDefenses
 
         protected override void Pool()
         {
-            fireTrans = RandomAdditions.KickStart.HeavyObjectSearch(transform, "_fireTrans");
+            fireTrans = transform.HeavyObjectSearch("_fireTrans");
             if (fireTrans == null)
                 fireTrans = gameObject.transform;
 
             gunSFX = GetComponent<ModuleWeapon>();
             if (UseChildModuleWeapon)
-                gunBase = GetComponentInChildren<ChildModuleWeapon>();
+                gunBase = GetComponentInChildren<IChildModuleWeapon>();
             else
             {
                 gunBase = GetComponent<ModuleWeaponGun>();
@@ -164,8 +163,8 @@ namespace ActiveDefenses
             {
                 if (gunBase is ModuleWeaponGun MWG)
                     barrelC = MWG.GetNumCannonBarrels();
-                else if (gunBase is ChildModuleWeapon CMW)
-                    barrelC = CMW.BarrelsMain.Count;
+                else if (gunBase is IChildModuleWeapon CMW)
+                    barrelC = CMW.GetBarrelsMainCount();
             }
             else
                 SeperateFromGun = true;
@@ -182,7 +181,7 @@ namespace ActiveDefenses
             if (PulseAimCone > 100 || PulseAimCone < 1)
             {
                 PulseAimCone = 15;
-                LogHandler.ThrowWarning("ModulePointDefense: Turret " + block.name + " has a PulseAimCone out of range!  Make sure it's a value within or including Input Value [1-100] ~ Degrees(5-360)");
+                BlockDebug.ThrowWarning("ModulePointDefense: Turret " + block.name + " has a PulseAimCone out of range!  Make sure it's a value within or including Input Value [1-100] ~ Degrees(5-360)");
             }
             pulseAimAnglef = 1 - (PulseAimCone / 50);
             if (!ForcePulse)
@@ -195,7 +194,7 @@ namespace ActiveDefenses
                     energyUser = PulseEnergyCost > 0;
                     return;
                 }
-                LogHandler.ThrowWarning("ModulePointDefense: Turret " + block.name + "'s FireData.m_BulletPrefab needs InterceptProjectile to work properly!");
+                BlockDebug.ThrowWarning("ModulePointDefense: Turret " + block.name + "'s FireData.m_BulletPrefab needs InterceptProjectile to work properly!");
             }
             else
             {
@@ -203,7 +202,7 @@ namespace ActiveDefenses
                     OverrideMaterial = new Material(Shader.Find("Sprites/Default"));
             }
             energyUser = PulseEnergyCost > 0;
-            //Debug.Log("ActiveDefenses: ModulePointDefense - Registered on block " + TankBlock.name + " ModuleWeaponGun: " + (bool)gunBase);
+            //DebugRandAddi.Log("ActiveDefenses: ModulePointDefense - Registered on block " + TankBlock.name + " ModuleWeaponGun: " + (bool)gunBase);
         }
         public void OnDrain()
         {
@@ -256,9 +255,9 @@ namespace ActiveDefenses
                 }
                 else
                 {
-                    if (UseChildModuleWeapon && gunBase is ChildModuleWeapon CMW)
+                    if (UseChildModuleWeapon && gunBase is IChildModuleWeapon CMW)
                     {
-                        barrelC = CMW.BarrelsMain.Count;
+                        barrelC = CMW.GetBarrelsMainCount();
                         posAim.Scale(transform.lossyScale);
                         CMW.OverrideAndAimAt(posAim, !ForcePulse);
                     }
@@ -309,7 +308,7 @@ namespace ActiveDefenses
             
             if (cooldown > 0)
             {
-                //Debug.Log("ActiveDefenses: " + def.name + " - Recharging");
+                //DebugRandAddi.Log("ActiveDefenses: " + def.name + " - Recharging");
                 barrelsFired = 0;
                 return;
             }
@@ -329,13 +328,13 @@ namespace ActiveDefenses
                 return;
             }
             ThisControllingWeaponGun = false;
-            //Debug.Log("ActiveDefenses: " + def.name + " - AIMING AT PROJECTILE");
+            //DebugRandAddi.Log("ActiveDefenses: " + def.name + " - AIMING AT PROJECTILE");
             if (Vector3.Dot((LockedTarget.position - fireTrans.position).normalized, fireTrans.forward) >= pulseAimAnglef)
             {
-                //Debug.Log("ActiveDefenses: " + def.name + " - FIRING AT PROJECTILE");
+                //DebugRandAddi.Log("ActiveDefenses: " + def.name + " - FIRING AT PROJECTILE");
                 if (FirePulseBeam(fireTrans, LockedTarget))
                 {
-                    //Debug.Log("ActiveDefenses: " + def.name + " - PROJECTILE DESTROYED");
+                    //DebugRandAddi.Log("ActiveDefenses: " + def.name + " - PROJECTILE DESTROYED");
                     killed = true;
                 }
                 cooldown = DefenseCooldown;
@@ -435,16 +434,16 @@ namespace ActiveDefenses
                     return true;
                 }
             }
-            else if (gunBase is RandomAdditions.ChildModuleWeapon CMW)
+            else if (gunBase is IChildModuleWeapon CMW)
             {
-                RandomAdditions.RACannonBarrel barry = CMW.BarrelsMain[barrelNum];
-                if (Vector3.Dot((aimPoint - barry.bulletTrans.position).normalized, barry.bulletTrans.forward) > pulseAimAnglef)
+                IChildWeapBarrel barry = CMW.GetBarrel(barrelNum);
+                if (Vector3.Dot((aimPoint - barry.GetBulletTrans().position).normalized, barry.GetBulletTrans().forward) > pulseAimAnglef)
                 {
-                    if ((bool)barry.flash)
-                        barry.flash.Fire();
-                    if ((bool)barry.recoilTrans)
+                    if ((bool)barry.GetFlashTrans())
+                        barry.GetFlashTrans().Fire();
+                    if ((bool)barry.GetRecoilTrans())
                     {
-                        var anim = barry.recoilTrans.GetComponentsInChildren<Animation>(true).FirstOrDefault();
+                        var anim = barry.GetRecoilTrans().GetComponentsInChildren<Animation>(true).FirstOrDefault();
                         if ((bool)anim)
                         {
                             recoiled.SetValue(barry, true);
@@ -459,7 +458,7 @@ namespace ActiveDefenses
                         }
                     }
 
-                    hit = FirePulseBeam(barry.bulletTrans, aimPoint);
+                    hit = FirePulseBeam(barry.GetBulletTrans(), aimPoint);
                     barrelsFired++;
                     return true;
                 }
@@ -768,7 +767,7 @@ namespace ActiveDefenses
             float velo = gunBase.GetVelocity();
             if (velo < 1)
                 velo = 1;
-            //Debug.Log("TweakTech: RoughPredictAim - " + GravSpeedModifier);
+            //DebugRandAddi.Log("TweakTech: RoughPredictAim - " + GravSpeedModifier);
             Vector3 targPos = LockedTarget.position;
             Vector3 VeloDiff = LockedTarget.velocity - tankVelo;
             if (!gunBase.AimWithTrajectory())
@@ -901,7 +900,7 @@ namespace ActiveDefenses
                     if (LockedTarget != fetched)
                     {
                         LockedTarget = fetched;
-                        //Debug.Log("ActiveDefenses: ModulePointDefense - GetTargetHeading target is too fast or too far to intercept - changing");
+                        //DebugRandAddi.Log("ActiveDefenses: ModulePointDefense - GetTargetHeading target is too fast or too far to intercept - changing");
                         veloVec = LockedTarget.velocity;
                         posVec = LockedTarget.position - gunBase.GetFireTransform().position;
                         roughDist = posVec.magnitude / velo;
@@ -979,7 +978,7 @@ namespace ActiveDefenses
             {
                 if (def.GetFetchedTargets(DefenseEnergyCost, out List<Rigidbody> rbodyCatch, !CanInterceptFast))
                 {
-                    //Debug.Log("ActiveDefenses: ModulePointDefense - Fetched " + rbodyCatch.Count() + " targets.");
+                    //DebugRandAddi.Log("ActiveDefenses: ModulePointDefense - Fetched " + rbodyCatch.Count() + " targets.");
                     if (!SmartManageTargets)
                     {
                         LockedTarget = rbodyCatch.First();
@@ -996,10 +995,10 @@ namespace ActiveDefenses
                     /*
                     if ((LockedTarget.position - block.transform.position).sqrMagnitude > DefendRange * DefendRange)
                     {
-                        Debug.Log("ActiveDefenses: ModulePointDefense - LockedTarget was found, but it's out of range!?");
+                        DebugRandAddi.Log("ActiveDefenses: ModulePointDefense - LockedTarget was found, but it's out of range!?");
                     }
                     */
-                    //Debug.Log("ActiveDefenses: ModulePointDefense - LOCK");
+                    //DebugRandAddi.Log("ActiveDefenses: ModulePointDefense - LOCK");
                     return true;
                 }
             }

@@ -12,11 +12,11 @@ namespace ActiveDefenses
         public static bool HasPointDefenseActive => hasPointDefenseActive;
 
         private static bool hasPointDefenseActive = false;
-        internal static List<TankPointDefense> pDTs = new List<TankPointDefense>();
+        internal static HashSet<TankPointDefense> pDTs = new HashSet<TankPointDefense>();
         private static bool needsReset = false;
 
         internal Tank tank;
-        private List<ModulePointDefense> dTs = new List<ModulePointDefense>();
+        private HashSet<ModulePointDefense> dTs = new HashSet<ModulePointDefense>();
 
         /// <summary>
         /// Frame-by-frame basis
