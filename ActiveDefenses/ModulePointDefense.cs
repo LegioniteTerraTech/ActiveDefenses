@@ -143,7 +143,7 @@ namespace ActiveDefenses
 
         protected override void Pool()
         {
-            fireTrans = transform.HeavyObjectSearch("_fireTrans");
+            fireTrans = transform.HeavyTransformSearch("_fireTrans");
             if (fireTrans == null)
                 fireTrans = gameObject.transform;
 
@@ -525,7 +525,7 @@ namespace ActiveDefenses
                     audioTickData.isNoteOn = spooling;
                     audioTickData.adsrTime01 = firing ? 1 : 0;
                     TechAudio.AudioTickData value = audioTickData;
-                    OnAudioTickUpdate.Send(value, null);
+                    OnAudioTickUpdate.Send(value, FMODEvent.FMODParams.empty);
                 }
             }
             catch { }
@@ -553,7 +553,7 @@ namespace ActiveDefenses
                     audioTickData.isNoteOn = false;
                     audioTickData.adsrTime01 = 0;
                     TechAudio.AudioTickData value = audioTickData;
-                    OnAudioTickUpdate.Send(value, null);
+                    OnAudioTickUpdate.Send(value, FMODEvent.FMODParams.empty);
                 }
             }
             catch { }
