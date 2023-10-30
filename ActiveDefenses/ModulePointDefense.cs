@@ -208,16 +208,24 @@ namespace ActiveDefenses
         {
             if (energyToTax > 0)
             {
-                energy.ConsumeUpToMax(EnergyRegulator.EnergyType.Electric, energyToTax);
+                energy.ConsumeUpToMax(TechEnergy.EnergyType.Electric, energyToTax);
                 energyToTax = 0;
             }
+        }
+
+        public override void OnGrabbed()
+        {
+            InterceptProjectile IP = gunSFX?.GetComponent<FireData>()?.m_BulletPrefab?.GetComponent<InterceptProjectile>();
+            if (IP && IP.IsFlare)
+                DefensesWiki.hintFlares.Show();
+            else
+                DefensesWiki.hintGun.Show();
         }
         public override void OnAttach()
         {
             barrelStep = 0;
             block.tank.TechAudio.AddModule(this);
             TankPointDefense.HandleAddition(tank, this);
-            ExtUsageHint.ShowExistingHint(4002);
         }
         public override void OnDetach()
         {
@@ -511,12 +519,12 @@ namespace ActiveDefenses
                     TechAudio.AudioTickData audioTickData = default;
                     if (ShareFireSFX)
                     {
-                        audioTickData.module = gunSFX;
+                        audioTickData.block = block;
                         audioTickData.provider = gunSFX;
                     }
                     else
                     {
-                        audioTickData.module = dmg; // only need pos
+                        audioTickData.block = block; // only need pos
                         audioTickData.provider = this;
                     }
                     audioTickData.sfxType = FireSFXType;
@@ -539,12 +547,12 @@ namespace ActiveDefenses
                     TechAudio.AudioTickData audioTickData = default;
                     if (ShareFireSFX)
                     {
-                        audioTickData.module = gunSFX;
+                        audioTickData.block = block;
                         audioTickData.provider = gunSFX;
                     }
                     else
                     {
-                        audioTickData.module = dmg; // only need pos
+                        audioTickData.block = block; // only need pos
                         audioTickData.provider = this;
                     }
                     audioTickData.sfxType = FireSFXType;
@@ -566,7 +574,8 @@ namespace ActiveDefenses
                 cooldown -= Time.deltaTime;
         }
 
-        public bool TryInterceptProjectile(bool enemyNear, int index, bool noTargetsLeft, out bool hit)
+        public bool TryInterceptProjectile(bool enemyNear, ref int index, ref bool noTargetsLeft, 
+            List<Rigidbody> fetchedProj, out bool hit)
         {
             hit = false;
 
@@ -592,7 +601,7 @@ namespace ActiveDefenses
                     spooling = false;
                 if (OverrideEnemyAiming)
                 {
-                    if (GetProjectile(index))
+                    if (GetProjectile(ref index, ref noTargetsLeft, fetchedProj))
                     {
                         if (!SeperateFromGun && !UseChildModuleWeapon)
                             ThisControllingWeaponGun = true;
@@ -877,58 +886,14 @@ namespace ActiveDefenses
             }
         }
 
-
-        /* // Old, Obsolete code - uses code from 
-        private Vector3 GetTargetHeading()
-        {   // The projectile intercept coding is too expensive on terratech's gun spam levels 
-            //  - will have to find a cheaper, less accurate but functional alternative
-            if (ForcePulse)
-                return LockedTarget.position;
-            Vector3 tankVelo = Vector3.zero;
-            if ((bool)TankBlock.tank.rbody)
-                tankVelo = TankBlock.tank.rbody.velocity;
-            float velo = gunBase.GetVelocity();
-            if (velo < 1)
-                velo = 1;
-            Vector3 veloVec = LockedTarget.velocity;
-            Vector3 posVec = LockedTarget.position - gunBase.GetFireTransform().position;
-            float roughDist = posVec.magnitude / velo;
-            if (roughDist > 10)
-            {   // It's too fast
-                if (def.GetNewTarget(out Rigidbody fetched, !CanInterceptFast))
-                {
-                    if (LockedTarget != fetched)
-                    {
-                        LockedTarget = fetched;
-                        //DebugRandAddi.Log("ActiveDefenses: ModulePointDefense - GetTargetHeading target is too fast or too far to intercept - changing");
-                        veloVec = LockedTarget.velocity;
-                        posVec = LockedTarget.position - gunBase.GetFireTransform().position;
-                        roughDist = posVec.magnitude / velo;
-                    }
-                }
-            }
-            Vector3 targPos = LockedTarget.position + ((veloVec - tankVelo) * roughDist);
-            if (!gunBase.AimWithTrajectory())
-                return targPos;
-
-            // Aim with rough predictive trajectory
-            velo *= velo;
-            float grav = -Physics.gravity.y;
-            Vector3 direct = targPos - gunBase.GetFireTransform().position;
-            Vector3 directFlat = direct;
-            directFlat.y = 0;
-            float distFlat = directFlat.sqrMagnitude;
-            float height = direct.y + direct.y;
-
-            float vertOffset = (velo * velo) - grav * (grav * distFlat + (height * velo));
-            if (vertOffset < 0)
-                targPos.y += (velo / grav) - direct.y;
-            else
-                targPos.y += ((velo - Mathf.Sqrt(vertOffset)) / grav) - direct.y;
-            return targPos;
-        }*/
-
+        private static List<Rigidbody> fetchedProjEmpty = new List<Rigidbody>();
         private bool GetProjectile(int index)
+        {
+            bool noTargetsLeft = false;
+            return GetProjectile(ref index, ref noTargetsLeft, fetchedProjEmpty);
+        }
+        private bool GetProjectile(ref int index, ref bool noTargetsLeft,
+            List<Rigidbody> fetchedProj)
         {
             bool getProj = false;
 
@@ -944,27 +909,31 @@ namespace ActiveDefenses
                 {
                     if (!LockedTarget.IsSleeping())
                     {
-                        float targDist = (LockedTarget.position - block.transform.position).sqrMagnitude;
-                        if (targDist > DefendRange * DefendRange)
+                        var targ = LockedTarget.GetComponent<ProjectileHealth>();
+                        if (targ && targ.proj?.Shooter != null && targ.proj.Shooter.IsEnemy(tank.Team))
                         {
-                            ThisControllingWeaponGun = false;
-                            LockedTarget = null;
-                        }
-                        else if (!SmartManageTargets) 
-                        {
-                            if (getProj)
+                            float targDist = (LockedTarget.position - block.transform.position).sqrMagnitude;
+                            if (targDist > DefendRange * DefendRange)
                             {
-                                if (def.GetFetchedTargets(DefenseEnergyCost, out List<Rigidbody> rbodyCatch, !CanInterceptFast))
+                                ThisControllingWeaponGun = false;
+                                LockedTarget = null;
+                            }
+                            else if (!SmartManageTargets)
+                            {
+                                if (getProj)
                                 {
-                                    if ((CanInterceptFast ? def.bestTargetDistAll : def.bestTargetDist) >= targDist)
-                                        return true;
-                                    else
-                                        LockedTarget = rbodyCatch.First();
+                                    if (def.GetFetchedTargets(DefenseEnergyCost, out List<Rigidbody> rbodyCatch, !CanInterceptFast))
+                                    {
+                                        if ((CanInterceptFast ? def.bestTargetDistAll : def.bestTargetDist) >= targDist)
+                                            return true;
+                                        else
+                                            LockedTarget = rbodyCatch.FirstOrDefault();
+                                    }
                                 }
                             }
+                            else
+                                return true;
                         }
-                        else
-                            return true;
                     }
                 }
                 catch
@@ -981,7 +950,7 @@ namespace ActiveDefenses
                     //DebugRandAddi.Log("ActiveDefenses: ModulePointDefense - Fetched " + rbodyCatch.Count() + " targets.");
                     if (!SmartManageTargets)
                     {
-                        LockedTarget = rbodyCatch.First();
+                        LockedTarget = rbodyCatch.FirstOrDefault();
                     }
                     else
                     {
@@ -989,7 +958,7 @@ namespace ActiveDefenses
                             LockedTarget = rbodyCatch[index];
                         else
                         {
-                            LockedTarget = rbodyCatch.First();
+                            LockedTarget = rbodyCatch.FirstOrDefault();
                         }
                     }
                     /*
@@ -1073,7 +1042,7 @@ namespace ActiveDefenses
                     if (!(bool)targ)
                     {
                         targ = LockedTarget.gameObject.AddComponent<ProjectileHealth>();
-                        targ.GetHealth();
+                        targ.SetupHealth();
                     }
                     return targ.TakeDamage(PointDefenseDamage, ExplodeOnHit);
                 }
@@ -1137,7 +1106,7 @@ namespace ActiveDefenses
                     if (!(bool)targ)
                     {
                         targ = rbody.gameObject.AddComponent<ProjectileHealth>();
-                        targ.GetHealth();
+                        targ.SetupHealth();
                     }
                     return targ.TakeDamage(PointDefenseDamage, ExplodeOnHit);
                 }

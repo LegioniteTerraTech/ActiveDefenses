@@ -14,7 +14,7 @@ namespace ActiveDefenses
         private float MaxHealth = 0;
         private float Health = 10;
         private bool exploded = false;
-        private Projectile proj;
+        internal Projectile proj;
 
         const float FastProjectileSpeed = 135;
         const float CheatingProjectileSpeed = 400;
@@ -41,7 +41,7 @@ namespace ActiveDefenses
         }
 
         FieldInfo deals = typeof(WeaponRound).GetField("m_Damage", BindingFlags.NonPublic | BindingFlags.Instance);
-        public void GetHealth()
+        public void SetupHealth()
         {
             try
             {
@@ -84,12 +84,9 @@ namespace ActiveDefenses
         {
             if (!(bool)proj)
             {
-                GetHealth();
+                SetupHealth();
                 if (!(bool)proj)
-                {
-                    DebugActDef.Log("ActiveDefenses: error - was called but no such Projectile present");
-                    return false;
-                }
+                    throw new NullReferenceException("ActiveDefenses: error - TakeDamage() was called but no such Projectile instance was present");
             }
             float health = Health - damage;
             if (health <= 0)
@@ -109,10 +106,10 @@ namespace ActiveDefenses
                     }
                     exploded = true;
                 }
-                var split = GetComponent<IExplodeable>();
-                if (split != null)
+                var i_explosion = GetComponent<IExplodeable>();
+                if (i_explosion != null)
                 {
-                    split.Explode();
+                    i_explosion.Explode();
                 }
 
                 proj.Recycle(worldPosStays: false);

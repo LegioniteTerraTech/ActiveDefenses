@@ -15,7 +15,7 @@ namespace ActiveDefenses
 {
     public class KickStart
     {
-        internal const string ModName = "ActiveDefenses";
+        internal const string ModID = "Active Defenses";
         internal static bool IsUnstable = false;
         public static void CheckIfUnstable()
         {
@@ -85,6 +85,7 @@ namespace ActiveDefenses
             try
             { // init changes
                 LegModExt.InsurePatches();
+                _ = DefensesWiki.loadHint1;
                 harmonyInstance.PatchAll(Assembly.GetExecutingAssembly());
                 //EdgePatcher(true);
                 DebugActDef.Log("ActiveDefenses: Patched");

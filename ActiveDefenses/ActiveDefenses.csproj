@@ -178,6 +178,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="DebugActDef.cs" />
+    <Compile Include="DefensesWiki.cs" />
     <Compile Include="DistractedProjectile.cs" />
     <Compile Include="InterceptProjectile.cs" />
     <Compile Include="KickStart.cs" />

@@ -71,7 +71,12 @@ namespace ActiveDefenses
             if (oInst == null)
                 oInst = this;
 
-            KickStart.MainOfficialInit();
+            try
+            {
+                TerraTechETCUtil.ModStatusChecker.EncapsulateSafeInit("Active Defenses",
+                    KickStart.MainOfficialInit, KickStart.DeInitALL);
+            }
+            catch { }
             isInit = true;
         }
         public override void DeInit()
@@ -122,7 +127,7 @@ namespace ActiveDefenses
         [HarmonyPatch("OnRecycle")]
         private class PatchProjectileRemove
         {
-            private static void Prefix(Projectile __instance)
+            private static void Postfix(Projectile __instance)
             {
                 ProjectileManager.Remove(__instance);
                 var health = __instance.GetComponent<ProjectileHealth>();
@@ -130,7 +135,20 @@ namespace ActiveDefenses
                     health.Reset();
             }
         }
-
+        /*
+        [HarmonyPatch(typeof(MissileProjectile))]
+        [HarmonyPatch("OnRecycle")]
+        private class PatchProjectileRemove2
+        {
+            private static void Prefix(MissileProjectile __instance)
+            {
+                ProjectileManager.Remove(__instance);
+                var health = __instance.GetComponent<ProjectileHealth>();
+                if (health)
+                    health.Reset();
+            }
+        }
+        */
 
         [HarmonyPatch(typeof(Projectile))]
         [HarmonyPatch("Fire")]//On Fire
@@ -143,14 +161,15 @@ namespace ActiveDefenses
                 if (ProjectileHealth.IsCheaty(projSped))
                     ProjectileManager.HandleCheaty(__instance);
 
-                var ModuleCheck2 = __instance.GetComponent<LaserProjectile>();
-                var ModuleCheck3 = __instance.GetComponent<MissileProjectile>();
-                if (!ModuleCheck3 && !ModuleCheck2)
+                if (__instance.GetComponent<MissileProjectile>())
                 {
-                    var ModuleCheck4 = __instance.GetComponent<ProjectileHealth>();
-                    if (ModuleCheck4 != null)
+                    ProjectileManager.Add(__instance);
+                }
+                else if (!__instance.GetComponent<LaserProjectile>())
+                {   // Cannot hit lasers dammit
+                    var health = __instance.GetComponent<ProjectileHealth>();
+                    if (health != null)
                     {
-
                         if (ProjectileHealth.IsFast(projSped))
                         {
                             ProjectileManager.Add(__instance);
@@ -159,22 +178,17 @@ namespace ActiveDefenses
                         else
                         {
                             //Debug.Log("ActiveDefenses: ASSERT - Abberation in Projectile!  " + __instance.gameObject.name);
-                            UnityEngine.Object.Destroy(ModuleCheck4);
+                            UnityEngine.Object.Destroy(health);
                         }
                     }
                     else
                     {
-
                         if (ProjectileHealth.IsFast(projSped))
                         {
                             ProjectileManager.Add(__instance);
                             //ModuleCheck3.GetHealth(true);
                         }
                     }
-                }
-                else
-                {
-                    ProjectileManager.Add(__instance);
                 }
             }
         }

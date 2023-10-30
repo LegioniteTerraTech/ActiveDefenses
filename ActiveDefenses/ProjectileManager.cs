@@ -18,6 +18,7 @@ namespace ActiveDefenses
 
         internal static List<Projectile> cheaters = new List<Projectile>();
 
+
         private byte timer = 0;
         private byte delay = 12;
 
@@ -59,6 +60,7 @@ namespace ActiveDefenses
             }
         }
 
+        private static List<Projectile> watchman = new List<Projectile>(50);
         /// <summary>
         /// Projectile watchman
         /// </summary>
@@ -67,8 +69,8 @@ namespace ActiveDefenses
             //Debug.Log("ActiveDefenses:  There are " + cheaters.Count + " - glitchyProj");
             if (cheaters.Count > 0)
             {
-                List<Projectile> queue = new List<Projectile>(cheaters);
-                foreach (var item in queue)
+                watchman.AddRange(cheaters);
+                foreach (var item in watchman)
                 {
                     try
                     {
@@ -81,6 +83,7 @@ namespace ActiveDefenses
                         cheaters.Remove(item);
                     }
                 }
+                watchman.Clear();
             }
         }
 
@@ -147,16 +150,18 @@ namespace ActiveDefenses
                     ProjOct.Add(rbody);
             }
         }
-        public static void Remove(Projectile rbody)
+        public static void Remove(Projectile proj)
         {
-            if (rbody.IsNotNull())
+            if (proj.IsNotNull())
             {
-                if (ProjOct.Remove(rbody))
+                if (ProjOct.Remove(proj))
                 {
-                    //Debug.Log("ActiveDefenses: ProjectileManager - Removed " + rbody.name);
+                    //Debug.Log("ActiveDefenses: ProjectileManager - Removed " + proj.name);
                 }
             }
         }
+        
+        private static List<Rigidbody> rbodysSend = new List<Rigidbody>(25);
         public static bool GetClosestProjectile(InterceptProjectile iProject, float Range, out Rigidbody rbody, out List<Rigidbody> rbodys)
         {
             //Debug.Log("ActiveDefenses: GetClosestProjectile - Launched!");
@@ -165,9 +170,9 @@ namespace ActiveDefenses
             Vector3 pos = iProject.trans.position;
             if (!ProjOct.NavigateOctree(pos, Range, out List<Projectile> Projectiles))
                 return false;
+            rbodysSend.Clear();
             float bestVal = Range * Range;
             float rangeMain = bestVal;
-            rbodys = new List<Rigidbody>();
             int projC = Projectiles.Count;
             for (int step = 0; step < projC; step++)
             {
@@ -183,7 +188,7 @@ namespace ActiveDefenses
                         {
                             if (dist < bestVal)
                             {
-                                rbodys.Add(rbodyC);
+                                rbodysSend.Add(rbodyC);
                                 bestVal = dist;
                                 rbody = rbodyC;
                             }
@@ -200,24 +205,24 @@ namespace ActiveDefenses
             //Debug.Log("ActiveDefenses: GetClosestProjectile - 5");
             if (rbody.IsNull())
                 return false;
+            rbodys = rbodysSend;
             var pHP = rbody.gameObject.GetComponent<ProjectileHealth>();
             if (!(bool)pHP)
             {
                 pHP = rbody.gameObject.AddComponent<ProjectileHealth>();
-                pHP.GetHealth();
+                pHP.SetupHealth();
             }
             return true;
         }
-        private static List<Rigidbody> rbodysCached = new List<Rigidbody>();
-        internal static bool GetListProjectiles(TankPointDefense iDefend, float Range, out List<Rigidbody> rbodys)
+
+        internal static bool GetListProjectiles(TankPointDefense iDefend, float Range, ref List<Rigidbody> rbodys)
         {
             //Debug.Log("ActiveDefenses: GetListProjectiles - Launched!");
-            rbodys = null;
             Vector3 pos = iDefend.transform.TransformPoint(iDefend.BiasDefendCenter);
             if (!ProjOct.NavigateOctree(pos, Range, out List<Projectile> Projectiles))
                 return false;
             float bestVal = Range * Range;
-            rbodysCached.Clear();
+            rbodys.Clear();
             int projC = Projectiles.Count;
             for (int step = 0; step < projC;)
             {
@@ -236,7 +241,7 @@ namespace ActiveDefenses
                         float dist = (project.trans.position - pos).sqrMagnitude;
                         if (dist < bestVal)
                         {
-                            rbodysCached.Add(rbodyC);
+                            rbodys.Add(rbodyC);
                         }
                     }
                 }
@@ -247,19 +252,19 @@ namespace ActiveDefenses
                 }
                 step++;
             }
-            if (rbodysCached.Count == 0)
+            if (rbodys.Count == 0)
                 return false;
-            foreach (Rigidbody rbody in rbodysCached)
+            foreach (Rigidbody rbody in rbodys)
             {
                 var pHP = rbody.gameObject.GetComponent<ProjectileHealth>();
                 if (!(bool)pHP)
                 {
                     pHP = rbody.gameObject.AddComponent<ProjectileHealth>();
-                    pHP.GetHealth();
+                    pHP.SetupHealth();
                 }
             }
 
-            rbodys = rbodysCached.OrderBy(t => t.position.sqrMagnitude).ToList();
+            rbodys = rbodys.OrderBy(t => t.position.sqrMagnitude).ToList();
             return true;
         }
 

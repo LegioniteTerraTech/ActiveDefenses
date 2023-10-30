@@ -6,12 +6,16 @@ using UnityEngine;
 
 namespace ActiveDefenses
 {
+
     public class ProjectileCubeArray
     {   // Dirty cheap octree that's not an octree but a coordinate
+
         internal const int CubeSize = 32;
         //internal bool useCheap = false;
-        internal List<KeyValuePair<Projectile, CubeBranch>> Projectiles = new List<KeyValuePair<Projectile, CubeBranch>>();
-        internal List<CubeBranch> CubeBranches = new List<CubeBranch>();
+        internal List<Projectile> ProjectilesOrdered = new List<Projectile>(5000);
+        internal Dictionary<Projectile, CubeBranch> ProjectilesMain = new Dictionary<Projectile, CubeBranch>(5000);
+        internal List<CubeBranch> CubeBranches = new List<CubeBranch>(250);
+        internal Queue<CubeBranch> CubeBranchPool = new Queue<CubeBranch>();
         private bool updatedThisFrame = false;
         private bool bloated = false;
 
@@ -24,7 +28,8 @@ namespace ActiveDefenses
         }
         public void PurgeAll()
         {
-            Projectiles.Clear();
+            DebugActDef.Log("ActiveDefenses: ProjectileCubetree - PurgeAll");
+            ProjectilesMain.Clear();
             CubeBranches.Clear();
         }
         /// <summary>
@@ -38,15 +43,12 @@ namespace ActiveDefenses
                 CubeBranch CB = CubeBranches.ElementAt(0);
                 if (CB != null)
                 {
-                    foreach (Projectile proj in CB.Projectiles)
+                    foreach (var item in CB.Projectiles)
                     {
-                        int index = Projectiles.FindIndex(delegate (KeyValuePair<Projectile, CubeBranch> cand) { return cand.Key == proj; });
-                        if (index != -1)
-                        {
-                            Projectiles.RemoveAt(index);
-                        }
+                        ProjectilesMain.Remove(item);
                     }
                 }
+                CubeBranchPool.Enqueue(CubeBranches.FirstOrDefault());
                 CubeBranches.RemoveAt(0);
             }
             bloated = false;
@@ -56,6 +58,7 @@ namespace ActiveDefenses
             bloated = true;
             for (int count = CubeBranches.Count; 0 < count; count--)
             {
+                CubeBranchPool.Enqueue(CubeBranches.FirstOrDefault());
                 CubeBranches.RemoveAt(0);
             }
             bloated = false;
@@ -68,15 +71,9 @@ namespace ActiveDefenses
                 //Debug.Log("ActiveDefenses: ProjectileCubetree(Remove) - Was told to remove NULL");
                 return false;
             }
-            int index = Projectiles.FindIndex(delegate (KeyValuePair<Projectile, CubeBranch> cand) { return cand.Key == proj; });
-            if (index == -1)
-            {
-                //Debug.Log("ActiveDefenses: ProjectileCubetree(Remove) - Was told to remove ID: " + proj.ShortlivedUID + ", not in the list?!? " + StackTraceUtility.ExtractStackTrace());
-                //PurgeAll();
-                return false;
-            }
-            KeyValuePair<Projectile, CubeBranch> pair = Projectiles[index];
-            Projectiles.RemoveAt(index);
+            if (ProjectilesMain.TryGetValue(proj, out CubeBranch branch))
+                ProjectilesMain.Remove(proj);
+            ProjectilesOrdered.Remove(proj);
             /*
             if (!CubeBranches.Remove(pair.Value))
                 DebugActDef.Log("ActiveDefenses: ProjectileCubetree(Remove) - Projectile was removed from list but not from cube branches " + StackTraceUtility.ExtractStackTrace());
@@ -87,40 +84,20 @@ namespace ActiveDefenses
             }*/
             return false;
         }
-        private bool Remove(KeyValuePair<Projectile, CubeBranch> proj)
-        {
-            //UpdatePos();
-            if (proj.Key.IsNull())
-            {
-                DebugActDef.Log("ActiveDefenses: ProjectileCubetree(PAIR) - Was told to remove NULL");
-                return false;
-            }
-            int index = Projectiles.IndexOf(proj);
-            if (index == -1)
-            {
-                //Debug.Log("ActiveDefenses: ProjectileCubetree(PAIR) - Was told to remove something not in the list?!? " + StackTraceUtility.ExtractStackTrace());
-                //PurgeAll();
-                return false;
-            }
-            Projectiles.RemoveAt(index);
-            if (!CubeBranches.Remove(proj.Value))
-                DebugActDef.Log("ActiveDefenses: ProjectileCubetree(PAIR) - Projectile was removed from list but not from cube branches " + StackTraceUtility.ExtractStackTrace());
-            else
-                return true;
-            return false;
-        }
+
         public void Add(Projectile proj)
         {
-            if (Projectiles.Exists(delegate (KeyValuePair<Projectile, CubeBranch> cand) { return cand.Key == proj; }))
+            if (ProjectilesMain.TryGetValue(proj, out _))
                 return;
-            if (Projectiles.Count > MaxProjectiles)
+            if (ProjectilesMain.Count > MaxProjectiles)
             {
                 DebugActDef.Log("ActiveDefenses: ProjectileCubetree - exceeded max projectiles, pruning");
+                //throw new Exception("ActiveDefenses: ProjectileCubetree - exceeded max projectiles, pruning");
 
                 // Prune some
-                for (int count = Projectiles.Count / 2; 0 < count; count--)
+                for (int count = ProjectilesMain.Count / 2; 0 < count; count--)
                 {
-                    Remove(Projectiles.ElementAt(0));
+                    Remove(ProjectilesOrdered.FirstOrDefault());
                 }
                 //return;
             }
@@ -133,11 +110,39 @@ namespace ActiveDefenses
                     break;
                 }
             }
-            Projectiles.Add(new KeyValuePair<Projectile, CubeBranch>(proj, AddCubeBranch(proj, CBp)));
+            ProjectilesOrdered.Add(proj);
+            ProjectilesMain[proj] = AddCubeBranch(proj, CBp);
+        }
+        private void RebuildCubeBranch(Projectile proj)
+        {
+            if (ProjectilesMain.TryGetValue(proj, out _))
+                return;
+            if (ProjectilesMain.Count > MaxProjectiles)
+            {
+                DebugActDef.Log("ActiveDefenses: ProjectileCubetree - exceeded max projectiles, pruning");
+                //throw new Exception("ActiveDefenses: ProjectileCubetree - exceeded max projectiles, pruning");
+
+                // Prune some
+                for (int count = ProjectilesMain.Count / 2; 0 < count; count--)
+                {
+                    Remove(ProjectilesOrdered.FirstOrDefault());
+                }
+                //return;
+            }
+            IntVector3 CBp = CubeBranch.ToCBPosition(proj.rbody.position);
+            foreach (CubeBranch CBc in CubeBranches)
+            {
+                if (CBc.CBPosition == CBp)
+                {
+                    CBc.Add(proj);
+                    break;
+                }
+            }
+            ProjectilesMain[proj] = AddCubeBranch(proj, CBp);
         }
         internal CubeBranch ManageCubeBranch(Projectile proj, IntVector3 pos)
         {
-            if (!Projectiles.Exists(delegate (KeyValuePair<Projectile, CubeBranch> cand) { return cand.Key == proj; }))
+            if (ProjectilesMain.TryGetValue(proj, out _))
             {
                 //Debug.Log("ActiveDefenses: ProjectileCubetree(ManageCubeBranch) - invalid call");
                 return null;
@@ -158,11 +163,19 @@ namespace ActiveDefenses
         {
             if (CubeBranches.Count > MaxCubeBranches)
             {
-                DebugActDef.Log("ActiveDefenses: ProjectileCubetree - exceeded max, pruning half");
+                DebugActDef.Log("ActiveDefenses: ProjectileCubetree - exceeded MaxCubeBranches, pruning half");
+                //throw new Exception("ActiveDefenses: ProjectileCubetree - exceeded MaxCubeBranches, pruning half");
                 PruneHALFCubeBranches();
                 return null;
             }
-            CubeBranch CB = new CubeBranch();
+            CubeBranch CB;
+            if (CubeBranchPool.Any())
+            {
+                CB = CubeBranchPool.Dequeue();
+                CB.Projectiles.Clear();
+            }
+            else
+                CB = new CubeBranch();
             CB.CBPosition = pos;
             CB.tree = this;
             CB.Add(proj);
@@ -174,28 +187,34 @@ namespace ActiveDefenses
         {
             if (updatedThisFrame)
                 return;
-            int count = Projectiles.Count;
+            int count = ProjectilesMain.Count;
             try
             {
                 for (int step = 0; step < count;)
                 {
-                    KeyValuePair<Projectile, CubeBranch> proj = Projectiles.ElementAt(step);
+                    KeyValuePair<Projectile, CubeBranch> proj = ProjectilesMain.ElementAt(step);
 
                     if (!(bool)proj.Key?.rbody)
                     {
                         if (proj.Value.Remove(proj.Key))
+                        {
+                            CubeBranchPool.Enqueue(proj.Value);
                             CubeBranches.Remove(proj.Value);
+                        }
                         //Debug.Log("ActiveDefenses: UpdatePos - ID: " + proj.Key.ShortlivedUID + " ProjectileRemoveReason: Null PairEntry/Rbody");
-                        Projectiles.RemoveAt(step);
+                        ProjectilesMain.Remove(proj.Key);
                         count--;
                         continue;
                     }
                     else if (!(bool)proj.Key?.Shooter)
                     {
                         if (proj.Value.Remove(proj.Key))
+                        {
+                            CubeBranchPool.Enqueue(proj.Value);
                             CubeBranches.Remove(proj.Value);
+                        }
                         //Debug.Log("ActiveDefenses: UpdatePos - ID: " + proj.Key.ShortlivedUID + " ProjectileRemoveReason: Null Shooter");
-                        Projectiles.RemoveAt(step);
+                        ProjectilesMain.Remove(proj.Key);
                         count--;
                         continue;
                     }
@@ -203,14 +222,14 @@ namespace ActiveDefenses
                     {
                         if (!CubeBranches.ElementAt(step).UpdateCubeBranch(proj.Key, out CubeBranch newCB))
                         {
+                            CubeBranchPool.Enqueue(proj.Value);
                             CubeBranches.RemoveAt(step);
                             count--;
                         }
                         if (newCB != null)
                         {
                             //Debug.Log("ActiveDefenses: UpdateCubeBranch - Migrated Projectile ID: " + proj.Key.ShortlivedUID + ".");
-                            Projectiles.RemoveAt(step);
-                            Projectiles.Insert(step, new KeyValuePair<Projectile, CubeBranch>(proj.Key, newCB));
+                            ProjectilesMain[proj.Key] = newCB;
                         }
                     }
                     step++;
@@ -222,13 +241,9 @@ namespace ActiveDefenses
         public void UpdateWorldPos(IntVector3 move)
         {
             PruneALLCubeBranches();
-            List<Projectile> projTemp = new List<Projectile>();
 
-            foreach (KeyValuePair<Projectile, CubeBranch> proj in Projectiles)
-                projTemp.Add(proj.Key);
-
-            foreach (Projectile proj in projTemp)
-                Add(proj);
+            foreach (Projectile proj in ProjectilesOrdered)
+                RebuildCubeBranch(proj);
         }
 
         private List<Projectile> projsCacheSend = new List<Projectile>();
@@ -267,9 +282,7 @@ namespace ActiveDefenses
                     //Debug.Log("ActiveDefenses: NavigateOctree - searching cube at " + CubeB.CBPosition + " position " + CubeB.GetCBPosition() + " is within search cube " + withinCube);
                     if (withinCube)
                     {
-                        if (CubeB.GetProjectiles(out List<Projectile> proj))
-                            projsCacheSend.AddRange(proj);
-                        else
+                        if (!CubeB.AddProjectiles(ref projsCacheSend))
                         {
                             count--;
                             continue;
@@ -309,10 +322,10 @@ namespace ActiveDefenses
             proj = null;
             distF = 0;
             float bestDistSq = range * range;
-            int count = Projectiles.Count;
+            int count = ProjectilesMain.Count;
             for (int step = 0; step < count;)
             {
-                KeyValuePair<Projectile, CubeBranch> projC = Projectiles.ElementAt(step);
+                KeyValuePair<Projectile, CubeBranch> projC = ProjectilesMain.ElementAt(step);
                 if (!(bool)projC.Key?.Shooter || !projC.Key?.rbody)
                 {
                     //Projectiles.RemoveAt(step);
@@ -365,9 +378,8 @@ namespace ActiveDefenses
             {
                 return new Vector3(pos.x * CubeSize, pos.y * CubeSize, pos.z * CubeSize);
             }
-            public bool GetProjectiles(out List<Projectile> projO)
+            public bool AddProjectiles(ref List<Projectile> projO)
             {
-                projO = new List<Projectile>();
                 int count = Projectiles.Count;
                 for (int step = 0; step < count;)
                 {
@@ -392,6 +404,7 @@ namespace ActiveDefenses
                 if (Projectiles.Count() == 0)
                 {
                     //Debug.Log("ActiveDefenses:  CubeBranch(GetProjectiles) - EMPTY");
+                    tree.CubeBranchPool.Enqueue(this);
                     tree.CubeBranches.Remove(this);
                     return false;
                 }
@@ -402,7 +415,7 @@ namespace ActiveDefenses
                 if (Projectiles.Count > MaxProjectiles)
                 {
                     DebugActDef.Log("ActiveDefenses: ProjectileCubetree - exceeded max projectiles, pruning");
-
+                    //throw new Exception("ActiveDefenses: ProjectileCubetree - exceeded max projectiles, pruning");
                     // Prune some
                     for (int count = Projectiles.Count / 2; 0 < count; count--)
                     {

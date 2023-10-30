@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Reflection;
 using UnityEngine;
+using TerraTechETCUtil;
 
 namespace ActiveDefenses
 {
@@ -14,6 +15,7 @@ namespace ActiveDefenses
         private static bool hasPointDefenseActive = false;
         internal static HashSet<TankPointDefense> pDTs = new HashSet<TankPointDefense>();
         private static bool needsReset = false;
+
 
         internal Tank tank;
         private HashSet<ModulePointDefense> dTs = new HashSet<ModulePointDefense>();
@@ -36,7 +38,7 @@ namespace ActiveDefenses
         internal float BiasDefendRange = 0;
         internal float DefenseRadius => BiasDefendRange / (1 + (TechSpeed() / 33));
 
-        private EnergyRegulator reg;
+        private TechEnergy reg;
         private float lastEnergy = 0;
         private float energyTax = 0;
 
@@ -116,26 +118,32 @@ namespace ActiveDefenses
                 return false;
             if (!fetchedTargets)
             {
-                if (!ProjectileManager.GetListProjectiles(this, DefenseRadius, out List<Rigidbody> rbodyCatch))
+                if (!ProjectileManager.GetListProjectiles(this, DefenseRadius, ref fetchedAll))
                     return false;
-                var reg = this.reg.Energy(EnergyRegulator.EnergyType.Electric);
+                var reg = this.reg.Energy(TechEnergy.EnergyType.Electric);
                 lastEnergy = reg.storageTotal - reg.spareCapacity;
-                fetchedAll.Clear();
-                fetchedAll.AddRange(rbodyCatch);
                 fetchedProj = fetchedAll.FindAll(delegate (Rigidbody cand) { return cand.GetComponent<MissileProjectile>(); });
 
                 Vector3 pos = transform.TransformPoint(BiasDefendCenter);
                 if (fetchedProj.Count > 0)
-                    bestTargetDist = (fetchedProj.First().position - pos).sqrMagnitude;
+                    bestTargetDist = (fetchedProj.FirstOrDefault().position - pos).sqrMagnitude;
                 if (fetchedAll.Count > 0)
-                    bestTargetDistAll = (fetchedAll.First().position - pos).sqrMagnitude;
+                    bestTargetDistAll = (fetchedAll.FirstOrDefault().position - pos).sqrMagnitude;
                 //if (fetchedAll.Count > 0)
-                //    Debug.Log("ActiveDefenses: TankPointDefense(GetTargetsRequest) - Target " + fetchedAll.First().name + " | " + fetchedAll.First().position + " | " + fetchedAll.First().velocity);
+                //    Debug.Log("ActiveDefenses: TankPointDefense(GetTargetsRequest) - Target " + fetchedAll.FirstOrDefault().name + " | " + fetchedAll.FirstOrDefault().position + " | " + fetchedAll.FirstOrDefault().velocity);
                 fetchedTargets = true;
             }
             if (!TryTaxReserves(energyCost))
                 return false;
             return true;
+        }
+        public void RefreshTargetCanidatesFromCache()
+        {
+            Vector3 pos = transform.TransformPoint(BiasDefendCenter);
+            if (fetchedProj.Count > 0)
+                bestTargetDist = (fetchedProj.FirstOrDefault().position - pos).sqrMagnitude;
+            if (fetchedAll.Count > 0)
+                bestTargetDistAll = (fetchedAll.FirstOrDefault().position - pos).sqrMagnitude;
         }
         private void HandleDefenses()
         {
@@ -143,7 +151,7 @@ namespace ActiveDefenses
             bool underloaded = false;
             foreach (ModulePointDefense def in dTs)
             {
-                if (!def.TryInterceptProjectile(enemyInRange, index, underloaded, out bool hit))
+                if (!def.TryInterceptProjectile(enemyInRange, ref index, ref underloaded, fetchedProj, out bool hit))
                 {
                     //def.DisabledWeapon = false;
                 }
@@ -155,7 +163,7 @@ namespace ActiveDefenses
                         index = (index + 1) % fetchedProj.Count;
                 }
             }
-            dTs.First().TaxReserves(energyTax);
+            dTs.FirstOrDefault().TaxReserves(energyTax);
             energyTax = 0;
         }
         private static void ResyncDefenses()
@@ -179,7 +187,7 @@ namespace ActiveDefenses
         /// <param name="proj"></param>
         internal bool EmergencyTryFireAtProjectile(Projectile proj, Vector3 projExpectedPosScene)
         {
-            var reg = this.reg.Energy(EnergyRegulator.EnergyType.Electric);
+            var reg = this.reg.Energy(TechEnergy.EnergyType.Electric);
             lastEnergy = reg.storageTotal - reg.spareCapacity;
 
             float distSqr = (projExpectedPosScene - tank.boundsCentreWorld).sqrMagnitude;

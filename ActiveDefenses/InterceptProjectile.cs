@@ -160,10 +160,7 @@ namespace ActiveDefenses
                     {
                         var targ = LockedTarget.GetComponent<ProjectileHealth>();
                         if (!(bool)targ)
-                        {
                             targ = LockedTarget.gameObject.AddComponent<ProjectileHealth>();
-                            targ.GetHealth();
-                        }
                         targ.TakeDamage(PointDefDamage, InterceptedExplode);
                         ProjBase.ExplodeNoDamage(PB.project); //Blows up THE InterceptProjectile
                         Recycle();
