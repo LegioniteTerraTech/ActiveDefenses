@@ -281,7 +281,7 @@ namespace ActiveDefenses
                 if (gunBase != null)
                 {
                     if (!SpoolOnEnemy)
-                        gunBase.Deploy(true);
+                        gunBase.UpdateDeployment(true);
                     spooling = true;
                     if (gunBase.PrepareFiring(true))
                     {
@@ -593,7 +593,7 @@ namespace ActiveDefenses
                 {
                     if (!UseChildModuleWeapon)
                         ThisControllingWeaponGun = true;
-                    gunBase.Deploy(true);
+                    gunBase.UpdateDeployment(true);
                     spooling = true;
                     gunBase.PrepareFiring(true);
                 }
