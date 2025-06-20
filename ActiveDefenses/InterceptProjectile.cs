@@ -59,6 +59,7 @@ namespace ActiveDefenses
 
         public Transform trans;
         public int team = -1;
+        public ModulePointDefense MPD = null;
         private bool init = false;
         private bool hitFast = false;
         private byte startDelay = 3;
@@ -76,6 +77,7 @@ namespace ActiveDefenses
         public override void Fire(FireData fireData)
         {
             var pd = fireData.GetComponent<ModulePointDefense>();
+            MPD = pd;
             if ((bool)pd)
                 Reset(pd.Target, pd.CanInterceptFast);
             else
@@ -98,7 +100,7 @@ namespace ActiveDefenses
                 return;
             if (StartDelay > byte.MaxValue || startDelay < 3)
             {
-                BlockDebug.ThrowWarning("ActiveDefenses: \nInterceptProjectile StartDelay must be within [3 - 255]\nCause of error - Projectile " + gameObject.name);
+                BlockDebug.ThrowWarning(true, "ActiveDefenses: \nInterceptProjectile StartDelay must be within [3 - 255]\nCause of error - Projectile " + gameObject.name);
             }
             else
                 startDelay = (byte)StartDelay;
@@ -215,6 +217,8 @@ namespace ActiveDefenses
                     }
                 }
             }
+            else if (MPD != null && MPD.Target != null)
+                LockedTarget = MPD.Target;
 
             if (updateBullet)
             {   // Get target from TankPointDefense

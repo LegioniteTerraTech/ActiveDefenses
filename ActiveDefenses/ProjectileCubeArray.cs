@@ -14,7 +14,7 @@ namespace ActiveDefenses
         //internal bool useCheap = false;
         internal List<Projectile> ProjectilesOrdered = new List<Projectile>(5000);
         internal Dictionary<Projectile, CubeBranch> ProjectilesMain = new Dictionary<Projectile, CubeBranch>(5000);
-        internal List<CubeBranch> CubeBranches = new List<CubeBranch>(250);
+        internal HashSet<CubeBranch> CubeBranches = new HashSet<CubeBranch>();
         internal Queue<CubeBranch> CubeBranchPool = new Queue<CubeBranch>();
         private bool updatedThisFrame = false;
         private bool bloated = false;
@@ -49,7 +49,7 @@ namespace ActiveDefenses
                     }
                 }
                 CubeBranchPool.Enqueue(CubeBranches.FirstOrDefault());
-                CubeBranches.RemoveAt(0);
+                CubeBranches.Remove(CB);
             }
             bloated = false;
         }
@@ -58,8 +58,9 @@ namespace ActiveDefenses
             bloated = true;
             for (int count = CubeBranches.Count; 0 < count; count--)
             {
-                CubeBranchPool.Enqueue(CubeBranches.FirstOrDefault());
-                CubeBranches.RemoveAt(0);
+                CubeBranch CB = CubeBranches.ElementAt(0);
+                CubeBranchPool.Enqueue(CB);
+                CubeBranches.Remove(CB);
             }
             bloated = false;
         }
@@ -102,15 +103,16 @@ namespace ActiveDefenses
                 //return;
             }
             IntVector3 CBp = CubeBranch.ToCBPosition(proj.rbody.position);
+            ProjectilesOrdered.Add(proj);
             foreach (CubeBranch CBc in CubeBranches)
             {
                 if (CBc.CBPosition == CBp)
                 {
                     CBc.Add(proj);
-                    break;
+                    ProjectilesMain[proj] = CBc;
+                    return;
                 }
             }
-            ProjectilesOrdered.Add(proj);
             ProjectilesMain[proj] = AddCubeBranch(proj, CBp);
         }
         private void RebuildCubeBranch(Projectile proj)
@@ -142,9 +144,9 @@ namespace ActiveDefenses
         }
         internal CubeBranch ManageCubeBranch(Projectile proj, IntVector3 pos)
         {
-            if (ProjectilesMain.TryGetValue(proj, out _))
+            if (!ProjectilesMain.ContainsKey(proj))
             {
-                //Debug.Log("ActiveDefenses: ProjectileCubetree(ManageCubeBranch) - invalid call");
+                Debug.Log("ActiveDefenses: ProjectileCubetree(ManageCubeBranch) - invalid call with unregistered projectile");
                 return null;
             }
             foreach (CubeBranch CBc in CubeBranches)
@@ -183,59 +185,52 @@ namespace ActiveDefenses
             CubeBranches.Add(CB);
             return CB;
         }
+
+
         public void UpdatePos()
         {
             if (updatedThisFrame)
                 return;
-            int count = ProjectilesMain.Count;
             try
             {
+                int count = ProjectilesMain.Count;
                 for (int step = 0; step < count;)
                 {
                     KeyValuePair<Projectile, CubeBranch> proj = ProjectilesMain.ElementAt(step);
 
-                    if (!(bool)proj.Key?.rbody)
+                    if (!(bool)proj.Key?.rbody || !(bool)proj.Key?.Shooter || proj.Key.rbody.IsSleeping())
                     {
                         if (proj.Value.Remove(proj.Key))
                         {
                             CubeBranchPool.Enqueue(proj.Value);
                             CubeBranches.Remove(proj.Value);
                         }
-                        //Debug.Log("ActiveDefenses: UpdatePos - ID: " + proj.Key.ShortlivedUID + " ProjectileRemoveReason: Null PairEntry/Rbody");
+                        DebugActDef.Log("ActiveDefenses: UpdatePos() - ID: " + proj.Key.ShortlivedUID + " ProjectileRemoveReason: Null PairEntry/Rbody/Shooter");
                         ProjectilesMain.Remove(proj.Key);
                         count--;
-                        continue;
-                    }
-                    else if (!(bool)proj.Key?.Shooter)
-                    {
-                        if (proj.Value.Remove(proj.Key))
-                        {
-                            CubeBranchPool.Enqueue(proj.Value);
-                            CubeBranches.Remove(proj.Value);
-                        }
-                        //Debug.Log("ActiveDefenses: UpdatePos - ID: " + proj.Key.ShortlivedUID + " ProjectileRemoveReason: Null Shooter");
-                        ProjectilesMain.Remove(proj.Key);
-                        count--;
-                        continue;
                     }
                     else
                     {
-                        if (!CubeBranches.ElementAt(step).UpdateCubeBranch(proj.Key, out CubeBranch newCB))
+                        //if (!CubeBranches.ElementAt(step).UpdateCubeBranch(proj.Key, out CubeBranch newCB))
+                        if (!proj.Value.UpdateCubeBranch(proj.Key, out CubeBranch newCB))
                         {
                             CubeBranchPool.Enqueue(proj.Value);
-                            CubeBranches.RemoveAt(step);
+                            CubeBranches.Remove(proj.Value);
                             count--;
                         }
                         if (newCB != null)
                         {
-                            //Debug.Log("ActiveDefenses: UpdateCubeBranch - Migrated Projectile ID: " + proj.Key.ShortlivedUID + ".");
+                            //DebugActDef.Log("ActiveDefenses: UpdateCubeBranch - Migrated Projectile ID: " + proj.Key.ShortlivedUID + ".");
                             ProjectilesMain[proj.Key] = newCB;
                         }
+                        step++;
                     }
-                    step++;
                 }
             }
-            catch { }
+            catch (Exception e)
+            {
+                DebugActDef.Log("ActiveDefenses: UpdatePos() crash - " + e);
+            }
             updatedThisFrame = true;
         }
         public void UpdateWorldPos(IntVector3 move)
@@ -445,26 +440,15 @@ namespace ActiveDefenses
             /// <returns></returns>
             internal bool UpdateCubeBranch(Projectile proj, out CubeBranch newCB)
             {
-                newCB = null;
-                if (!proj?.rbody)
-                {
-                    DebugActDef.Log("ActiveDefenses: UpdateCubeBranch - Removed Projectile?  This should have been checked beforehand.");
-                    Projectiles.Remove(proj);
-                }
-                else if (proj.Shooter.IsNull())
-                {
-                    DebugActDef.Log("ActiveDefenses: UpdateCubeBranch(NULL SHOOTER) - Removed Projectile?  This should have been checked beforehand.");
+                IntVector3 pos = ToCBPosition(proj.rbody.position);
+                if (CBPosition != pos)
+                {   // the projectile has left the branch and we must migrate it to a new one
+                    //DebugActDef.Log("ActiveDefenses: UpdateCubeBranch() call");
+                    newCB = tree.ManageCubeBranch(proj, pos);
                     Projectiles.Remove(proj);
                 }
                 else
-                {
-                    IntVector3 pos = ToCBPosition(proj.rbody.position);
-                    if (CBPosition != pos)
-                    {
-                        newCB = tree.ManageCubeBranch(proj, pos);
-                        Projectiles.Remove(proj);
-                    }
-                }
+                    newCB = null;
                 if (Projectiles.Count() == 0)
                     return false;
                 return true;

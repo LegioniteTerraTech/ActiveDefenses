@@ -69,6 +69,9 @@ namespace ActiveDefenses
     {
         // General parameters
         public bool DefendOnly = false;
+        /// <summary>
+        /// Can shoot any kind of projectile
+        /// </summary>
         public bool CanInterceptFast = false;       // Can this also shoot fast projectiles?
         public bool AllAtOnce = true;
         public bool ForcePulse = false;
@@ -78,7 +81,7 @@ namespace ActiveDefenses
         public float LockOnTooFastSpeed = 1f;    //If the projectile is this percent above speed, then we aim direct
         public float RotateRate = 50;
         public float DefendRange = 50;
-        public float DefenseCooldown = 1;
+        public float DefenseCooldown = 0.5f;   // was 1, lowered to 0.5f
         public float DefenseEnergyCost = 0;
         public bool ExplodeOnHit = false;
         public bool ShareFireSFX = false;
@@ -181,7 +184,7 @@ namespace ActiveDefenses
             if (PulseAimCone > 100 || PulseAimCone < 1)
             {
                 PulseAimCone = 15;
-                BlockDebug.ThrowWarning("ModulePointDefense: Turret " + block.name + " has a PulseAimCone out of range!  Make sure it's a value within or including Input Value [1-100] ~ Degrees(5-360)");
+                BlockDebug.ThrowWarning(false, "ModulePointDefense: Turret " + block.name + " has a PulseAimCone out of range!  Make sure it's a value within or including Input Value [1-100] ~ Degrees(5-360)");
             }
             pulseAimAnglef = 1 - (PulseAimCone / 50);
             if (!ForcePulse)
@@ -194,7 +197,7 @@ namespace ActiveDefenses
                     energyUser = PulseEnergyCost > 0;
                     return;
                 }
-                BlockDebug.ThrowWarning("ModulePointDefense: Turret " + block.name + "'s FireData.m_BulletPrefab needs InterceptProjectile to work properly!");
+                BlockDebug.ThrowWarning(false, "ModulePointDefense: Turret " + block.name + "'s FireData.m_BulletPrefab needs InterceptProjectile to work properly!");
             }
             else
             {
@@ -234,9 +237,9 @@ namespace ActiveDefenses
             TankPointDefense.HandleRemoval(tank, this);
         }
         FieldInfo recoiled = typeof(CannonBarrel).GetField("recoiling", BindingFlags.NonPublic | BindingFlags.Instance);
-        private void UpdateLockOn(out bool hit)
+        private void UpdateLockOn(out bool targDestroyed)
         {
-            hit = false;
+            targDestroyed = false;
             barrelsFired = 0;
             if (LockedTarget == null)
             {
@@ -288,7 +291,7 @@ namespace ActiveDefenses
                         if (!gunBase.FiringObstructed())
                         {
                             // Proceed to firing
-                            firing = LockOnFire(out hit);
+                            firing = LockOnFire(out targDestroyed);
                         }
                     }
                 }
@@ -297,7 +300,7 @@ namespace ActiveDefenses
             {
                 ThisControllingWeaponGun = false;
                 firing = LockOnFireSimple();
-                hit = true;
+                targDestroyed = true;
                 spooling = true;
             }
             if (cacheDisabled == ThisControllingWeaponGun)
@@ -361,9 +364,9 @@ namespace ActiveDefenses
             }
         }
 
-        private bool LockOnFire(out bool hit)
+        private bool LockOnFire(out bool targDestroyed)
         {
-            hit = false;
+            targDestroyed = false;
             if (cooldown <= 0)
                 cooldown = DefenseCooldown;
             else
@@ -377,7 +380,7 @@ namespace ActiveDefenses
                 {
                     if (LockedTarget.GetComponent<ProjectileHealth>())
                         if (LockedTarget.GetComponent<ProjectileHealth>().WillDestroy(PointDefenseDamage))
-                            hit = true;
+                            targDestroyed = true;
                     return true;
                 }
                 return false;
@@ -391,13 +394,13 @@ namespace ActiveDefenses
                 {
                     for (int step = 0; step < barrelC; step++)
                     {
-                        if (LockOnFireQueueBarrel(aimPoint, step, out hit))
+                        if (LockOnFireQueueBarrel(aimPoint, step, out targDestroyed))
                             fired = true;
                     }
                 }
                 else
                 {
-                    fired = LockOnFireQueueBarrel(aimPoint, barrelStep, out hit);
+                    fired = LockOnFireQueueBarrel(aimPoint, barrelStep, out targDestroyed);
                     if (barrelStep == barrelC - 1)
                         barrelStep = 0;
                     else
@@ -411,7 +414,7 @@ namespace ActiveDefenses
                 return false;
             }
         }
-        private bool LockOnFireQueueBarrel(Vector3 aimPoint, int barrelNum, out bool hit)
+        private bool LockOnFireQueueBarrel(Vector3 aimPoint, int barrelNum, out bool targDestroyed)
         {
             if (gunBase is ModuleWeaponGun MWG)
             {
@@ -437,7 +440,7 @@ namespace ActiveDefenses
                         }
                     }
 
-                    hit = FirePulseBeam(barry.projectileSpawnPoint, aimPoint);
+                    targDestroyed = FirePulseBeam(barry.projectileSpawnPoint, aimPoint);
                     barrelsFired++;
                     return true;
                 }
@@ -466,12 +469,12 @@ namespace ActiveDefenses
                         }
                     }
 
-                    hit = FirePulseBeam(barry.GetBulletTrans(), aimPoint);
+                    targDestroyed = FirePulseBeam(barry.GetBulletTrans(), aimPoint);
                     barrelsFired++;
                     return true;
                 }
             }
-            hit = false;
+            targDestroyed = false;
             return false;
         }
         private bool LockOnFireSimple()
@@ -574,10 +577,9 @@ namespace ActiveDefenses
                 cooldown -= Time.deltaTime;
         }
 
-        public bool TryInterceptProjectile(bool enemyNear, ref int index, ref bool noTargetsLeft, 
-            List<Rigidbody> fetchedProj, out bool hit)
+        public bool TryInterceptProjectile(bool enemyNear, ref int index, ref bool noTargetsLeft, out bool targDestroyed)
         {
-            hit = false;
+            targDestroyed = false;
 
             firingCache = firing;
             firing = false;
@@ -601,11 +603,11 @@ namespace ActiveDefenses
                     spooling = false;
                 if (OverrideEnemyAiming)
                 {
-                    if (GetProjectile(ref index, ref noTargetsLeft, fetchedProj))
+                    if (GetProjectile(ref index, ref noTargetsLeft))
                     {
                         if (!SeperateFromGun && !UseChildModuleWeapon)
                             ThisControllingWeaponGun = true;
-                        UpdateLockOn(out hit);
+                        UpdateLockOn(out targDestroyed);
                         return true;
                     }
                     else if (block.tank.control.FireControl)
@@ -627,7 +629,7 @@ namespace ActiveDefenses
                     {
                         if (!SeperateFromGun && !UseChildModuleWeapon)
                             ThisControllingWeaponGun = true;
-                        UpdateLockOn(out hit);
+                        UpdateLockOn(out targDestroyed);
                         return true;
                     }
                     else
@@ -648,7 +650,7 @@ namespace ActiveDefenses
                     {
                         if (!SeperateFromGun)
                             ThisControllingWeaponGun = true;
-                        UpdateLockOn(out hit);
+                        UpdateLockOn(out targDestroyed);
                         return true;
                     }
                     else if (block.tank.control.FireControl)
@@ -670,7 +672,7 @@ namespace ActiveDefenses
                     {
                         if (!SeperateFromGun)
                             ThisControllingWeaponGun = true;
-                        UpdateLockOn(out hit);
+                        UpdateLockOn(out targDestroyed);
                         return true;
                     }
                     else
@@ -886,14 +888,12 @@ namespace ActiveDefenses
             }
         }
 
-        private static List<Rigidbody> fetchedProjEmpty = new List<Rigidbody>();
         private bool GetProjectile(int index)
         {
             bool noTargetsLeft = false;
-            return GetProjectile(ref index, ref noTargetsLeft, fetchedProjEmpty);
+            return GetProjectile(ref index, ref noTargetsLeft);
         }
-        private bool GetProjectile(ref int index, ref bool noTargetsLeft,
-            List<Rigidbody> fetchedProj)
+        private bool GetProjectile(ref int index, ref bool noTargetsLeft)
         {
             bool getProj = false;
 

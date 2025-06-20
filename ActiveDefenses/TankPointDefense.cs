@@ -18,6 +18,7 @@ namespace ActiveDefenses
 
 
         internal Tank tank;
+        private HashSet<ModulePointDefense> dTMs = new HashSet<ModulePointDefense>();
         private HashSet<ModulePointDefense> dTs = new HashSet<ModulePointDefense>();
 
         /// <summary>
@@ -29,7 +30,7 @@ namespace ActiveDefenses
         /// </summary>
         private bool enemyInRange = false;
         private bool needsBiasCheck = false;
-        private List<Rigidbody> fetchedProj = new List<Rigidbody>();
+        private List<Rigidbody> fetchedMissiles = new List<Rigidbody>();
         private List<Rigidbody> fetchedAll = new List<Rigidbody>();
         internal float bestTargetDist = 0;
         internal float bestTargetDistAll = 0;
@@ -60,10 +61,20 @@ namespace ActiveDefenses
                 ProjectileManager.ToggleActive(true);
             }
 
-            if (!def.dTs.Contains(dTurret))
-                def.dTs.Add(dTurret);
+            if (dTurret.CanInterceptFast)
+            {
+                if (!def.dTs.Contains(dTurret))
+                    def.dTs.Add(dTurret);
+                else
+                    DebugActDef.Log("ActiveDefenses: TankPointDefense - ModulePointDefense of " + dTurret.name + " was already added to " + tank.name + " but an add request was given?!?");
+            }
             else
-                DebugActDef.Log("ActiveDefenses: TankPointDefense - ModulePointDefense of " + dTurret.name + " was already added to " + tank.name + " but an add request was given?!?");
+            {
+                if (!def.dTMs.Contains(dTurret))
+                    def.dTMs.Add(dTurret);
+                else
+                    DebugActDef.Log("ActiveDefenses: TankPointDefense - ModulePointDefense of " + dTurret.name + " was already added to " + tank.name + " but an add request was given?!?");
+            }
             dTurret.def = def;
             def.needsBiasCheck = true;
             needsReset = true;
@@ -82,12 +93,20 @@ namespace ActiveDefenses
                 DebugActDef.Log("ActiveDefenses: TankPointDefense - Got request to remove for tech " + tank.name + " but there's no TankPointDefense assigned?!?");
                 return;
             }
-            if (!def.dTs.Remove(dTurret))
-                DebugActDef.Log("ActiveDefenses: TankPointDefense - ModulePointDefense of " + dTurret.name + " requested removal from " + tank.name + " but no such ModulePointDefense is assigned.");
+            if (dTurret.CanInterceptFast)
+            {
+                if (!def.dTs.Remove(dTurret))
+                    DebugActDef.Log("ActiveDefenses: TankPointDefense - ModulePointDefense of " + dTurret.name + " requested removal from " + tank.name + " but no such ModulePointDefense is assigned.");
+            }
+            else
+            {
+                if (!def.dTMs.Remove(dTurret))
+                    DebugActDef.Log("ActiveDefenses: TankPointDefense - ModulePointDefense of " + dTurret.name + " requested removal from " + tank.name + " but no such ModulePointDefense is assigned.");
+            }
             dTurret.def = null;
             def.needsBiasCheck = true;
 
-            if (def.dTs.Count() == 0)
+            if (def.dTs.Count() == 0 && def.dTMs.Count() == 0)
             {
                 pDTs.Remove(def);
                 if (pDTs.Count == 0)
@@ -122,11 +141,16 @@ namespace ActiveDefenses
                     return false;
                 var reg = this.reg.Energy(TechEnergy.EnergyType.Electric);
                 lastEnergy = reg.storageTotal - reg.spareCapacity;
-                fetchedProj = fetchedAll.FindAll(delegate (Rigidbody cand) { return cand.GetComponent<MissileProjectile>(); });
+                fetchedMissiles.Clear();
+                foreach (var cand in fetchedAll)
+                {
+                    if (cand.GetComponent<MissileProjectile>())
+                        fetchedMissiles.Add(cand);
+                }
 
                 Vector3 pos = transform.TransformPoint(BiasDefendCenter);
-                if (fetchedProj.Count > 0)
-                    bestTargetDist = (fetchedProj.FirstOrDefault().position - pos).sqrMagnitude;
+                if (fetchedMissiles.Count > 0)
+                    bestTargetDist = (fetchedMissiles.FirstOrDefault().position - pos).sqrMagnitude;
                 if (fetchedAll.Count > 0)
                     bestTargetDistAll = (fetchedAll.FirstOrDefault().position - pos).sqrMagnitude;
                 //if (fetchedAll.Count > 0)
@@ -140,30 +164,74 @@ namespace ActiveDefenses
         public void RefreshTargetCanidatesFromCache()
         {
             Vector3 pos = transform.TransformPoint(BiasDefendCenter);
-            if (fetchedProj.Count > 0)
-                bestTargetDist = (fetchedProj.FirstOrDefault().position - pos).sqrMagnitude;
+            if (fetchedMissiles.Count > 0)
+                bestTargetDist = (fetchedMissiles.FirstOrDefault().position - pos).sqrMagnitude;
             if (fetchedAll.Count > 0)
                 bestTargetDistAll = (fetchedAll.FirstOrDefault().position - pos).sqrMagnitude;
         }
         private void HandleDefenses()
         {
             int index = 0;
-            bool underloaded = false;
-            foreach (ModulePointDefense def in dTs)
+            bool noTargetsLeft = false;
+            bool DumbDefWasteTurn = false;
+            bool targDestroyed = false;
+            // For missile interceptors
+            foreach (ModulePointDefense def in dTMs)
             {
-                if (!def.TryInterceptProjectile(enemyInRange, ref index, ref underloaded, fetchedProj, out bool hit))
+                if (def.SmartManageTargets)
                 {
-                    //def.DisabledWeapon = false;
+                    if (!def.TryInterceptProjectile(enemyInRange, ref index, ref noTargetsLeft, out targDestroyed))
+                    {
+                        //def.DisabledWeapon = false;
+                    }
                 }
-                if (hit && def.SmartManageTargets)
+                else if (!DumbDefWasteTurn)
                 {
-                    if (index > fetchedProj.Count)
-                        underloaded = true;
-                    if (fetchedProj.Count > 0)
-                        index = (index + 1) % fetchedProj.Count;
+                    if (!def.TryInterceptProjectile(enemyInRange, ref index, ref noTargetsLeft, out targDestroyed))
+                    {
+                        //def.DisabledWeapon = false;
+                    }
+                }
+                if (targDestroyed)
+                {
+                    DumbDefWasteTurn |= true;
+                    if (index > fetchedMissiles.Count)
+                        noTargetsLeft = true;
+                    if (fetchedMissiles.Count > 0)
+                        index = (index + 1) % fetchedMissiles.Count;
                 }
             }
-            dTs.FirstOrDefault().TaxReserves(energyTax);
+            DumbDefWasteTurn = false;
+            // for general interceptors
+            foreach (ModulePointDefense def in dTs)
+            {
+                if (def.SmartManageTargets)
+                {
+                    if (!def.TryInterceptProjectile(enemyInRange, ref index, ref noTargetsLeft, out targDestroyed))
+                    {
+                        //def.DisabledWeapon = false;
+                    }
+                }
+                else if (!DumbDefWasteTurn)
+                {
+                    if (!def.TryInterceptProjectile(enemyInRange, ref index, ref noTargetsLeft, out targDestroyed))
+                    {
+                        //def.DisabledWeapon = false;
+                    }
+                }
+                if (targDestroyed)
+                {
+                    DumbDefWasteTurn |= true;
+                    if (index > fetchedAll.Count)
+                        noTargetsLeft = true;
+                    if (fetchedAll.Count > 0)
+                        index = (index + 1) % fetchedAll.Count;
+                }
+            }
+            if (dTs.Any())
+                dTs.FirstOrDefault().TaxReserves(energyTax);
+            else
+                dTMs.FirstOrDefault().TaxReserves(energyTax);
             energyTax = 0;
         }
         private static void ResyncDefenses()
@@ -172,6 +240,10 @@ namespace ActiveDefenses
                 return;
             foreach (TankPointDefense tech in pDTs)
             {
+                foreach (ModulePointDefense def in tech.dTMs)
+                {
+                    def.ResetTiming();
+                }
                 foreach (ModulePointDefense def in tech.dTs)
                 {
                     def.ResetTiming();
@@ -228,11 +300,17 @@ namespace ActiveDefenses
                 return;
             BiasDefendCenter = Vector3.zero;
             BiasDefendRange = 0;
-            foreach (ModulePointDefense dT in dTs)
-            {
+            foreach (ModulePointDefense dT in dTMs)
                 BiasDefendCenter += tank.transform.InverseTransformPoint(dT.block.centreOfMassWorld);
+            foreach (ModulePointDefense dT in dTs)
+                BiasDefendCenter += tank.transform.InverseTransformPoint(dT.block.centreOfMassWorld);
+            BiasDefendCenter /= dTs.Count + dTMs.Count;
+            foreach (ModulePointDefense dT in dTMs)
+            {
+                float maxRangeC = dT.transform.localPosition.magnitude + dT.DefendRange;
+                if (maxRangeC > BiasDefendRange)
+                    BiasDefendRange = maxRangeC;
             }
-            BiasDefendCenter /= dTs.Count;
             foreach (ModulePointDefense dT in dTs)
             {
                 float maxRangeC = dT.transform.localPosition.magnitude + dT.DefendRange;
@@ -242,21 +320,21 @@ namespace ActiveDefenses
             DebugActDef.Info("ActiveDefenses: TankPointDefense - BiasDefendCenter of " + tank.name + " changed to " + BiasDefendCenter);
             needsBiasCheck = false;
         }
-        public bool GetFetchedTargets(float energyCost, out List<Rigidbody> fetchedProj, bool missileOnly = true)
+        public bool GetFetchedTargets(float energyCost, out List<Rigidbody> fetchedProjPool, bool missileOnly = true)
         {
-            fetchedProj = null;
+            fetchedProjPool = null;
             if (!GetTargetsRequest(energyCost))
                 return false;
             if (missileOnly)
-                fetchedProj = this.fetchedProj;
+                fetchedProjPool = fetchedMissiles;
             else
-                fetchedProj = fetchedAll;
-            return fetchedProj != null && fetchedProj.Count() != 0;
+                fetchedProjPool = fetchedAll;
+            return fetchedProjPool != null && fetchedProjPool.Count() != 0;
         }
         public bool GetFetchedTargetsNoScan(out List<Rigidbody> fetchedProj, bool missileOnly = true)
         {
             if (missileOnly)
-                fetchedProj = this.fetchedProj;
+                fetchedProj = fetchedMissiles;
             else
                 fetchedProj = fetchedAll;
             return fetchedProj != null && fetchedProj.Count() != 0;
@@ -266,7 +344,7 @@ namespace ActiveDefenses
             fetched = null;
             List<Rigidbody> fetchedProj;
             if (missileOnly)
-                fetchedProj = this.fetchedProj;
+                fetchedProj = fetchedMissiles;
             else
                 fetchedProj = fetchedAll;
             if (fetchedProj != null)

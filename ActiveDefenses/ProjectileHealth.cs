@@ -112,7 +112,7 @@ namespace ActiveDefenses
                     i_explosion.Explode();
                 }
 
-                proj.Recycle(worldPosStays: false);
+                proj.Recycle(worldPosStays: true);
                 return true;
                 //Debug.Log("ActiveDefenses: Projectile destroyed!");
             }

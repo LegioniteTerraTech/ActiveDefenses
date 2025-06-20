@@ -50,7 +50,7 @@ namespace ActiveDefenses
         {
             ProjOct.PurgeAll();
         }
-        private void LateUpdate()
+        internal void LateUpdate()
         {
             timer++;
             if (timer >= delay)
@@ -227,7 +227,7 @@ namespace ActiveDefenses
             for (int step = 0; step < projC;)
             {
                 Projectile project = Projectiles.ElementAt(step);
-                if (!(bool)project)
+                if (!(bool)project?.rbody || project.rbody.IsSleeping())
                 {
                     //Debug.Log("ActiveDefenses: null projectile in output");
                     step++;
